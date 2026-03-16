@@ -1,0 +1,84 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Plus } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireProfile } from "@/lib/auth/session";
+import { DtrTable } from "@/features/dtr/components/dtr-table";
+
+export default async function DtrListPage({
+  searchParams,
+}: {
+  searchParams: { status?: string };
+}) {
+  const profile = await requireProfile();
+  const supabase = await createServerSupabaseClient();
+
+  let query = supabase
+    .from("dtr_entries")
+    .select("id, work_date, status, duration_minutes, project_account, profiles(full_name)")
+    .order("work_date", { ascending: false });
+
+  if (profile.role === "employee") {
+    query = query.eq("employee_id", profile.id);
+  }
+
+  if (searchParams.status) {
+    query = query.eq("status", searchParams.status);
+  }
+
+  const { data, error } = await query.limit(50);
+  if (error) notFound();
+
+  const rows =
+    data?.map((item) => ({
+      ...item,
+      profiles: Array.isArray(item.profiles) ? item.profiles[0] ?? undefined : item.profiles,
+    })) ?? [];
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="DTR"
+        description="Actual work logs. Drafts are editable until submitted."
+        actions={
+          profile.role === "employee" ? (
+            <Button asChild>
+              <Link href="/dtr/new">
+                <Plus className="h-4 w-4" />
+                New entry
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
+
+      <div className="flex items-center gap-3 text-sm">
+        <span className="text-slate-500">Filter:</span>
+        <Link
+          href="/dtr"
+          className={`rounded-full px-3 py-1 border ${!searchParams.status ? "bg-accent text-white border-accent" : "border-border text-slate-700"}`}
+        >
+          All
+        </Link>
+        <Link
+          href="/dtr?status=draft"
+          className={`rounded-full px-3 py-1 border ${searchParams.status === "draft" ? "bg-accent text-white border-accent" : "border-border text-slate-700"}`}
+        >
+          Draft
+        </Link>
+        <Link
+          href="/dtr?status=submitted"
+          className={`rounded-full px-3 py-1 border ${searchParams.status === "submitted" ? "bg-accent text-white border-accent" : "border-border text-slate-700"}`}
+        >
+          Submitted
+        </Link>
+      </div>
+
+      <div className="card">
+        <DtrTable data={rows} isManager={profile.role === "manager"} />
+      </div>
+    </div>
+  );
+}

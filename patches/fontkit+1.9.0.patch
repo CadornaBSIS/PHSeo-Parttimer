@@ -1,0 +1,13 @@
+diff --git a/node_modules/fontkit/dist/module.mjs b/node_modules/fontkit/dist/module.mjs
+index 7d78e2f..2a1f2c4 100644
+--- a/node_modules/fontkit/dist/module.mjs
++++ b/node_modules/fontkit/dist/module.mjs
+@@ -1,6 +1,7 @@
+ import  from \"restructure\";
+ import {readFileSync as , readFile as } from \"fs\";
+-import {applyDecoratedDescriptor as } from \"@swc/helpers\";
++// SWC helper exports this symbol as _apply_decorated_descriptor; alias it to keep fontkit working in ESM build.
++import {_apply_decorated_descriptor as } from \"@swc/helpers\";
+ import {Buffer as } from \"buffer\";
+ import {resolveLength as , PropertyDescriptor as } from \"restructure/src/utils.js\";
+ import  from \"deep-equal\";
