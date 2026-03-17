@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/common/status-badge";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth/session";
-import { formatWeekRange, ensureMonday, computeWeekEnd } from "@/utils/date";
+import { formatWeekRange, ensureMonday, computeWeekEnd, formatMinutes } from "@/utils/date";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -156,7 +156,7 @@ export default async function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <Badge variant="secondary">
-                      {item.duration_minutes} mins
+                      {formatMinutes(item.duration_minutes)}
                     </Badge>
                     <StatusBadge status={item.status} />
                   </div>
@@ -344,7 +344,7 @@ export default async function DashboardPage() {
                     {dtr.work_date}
                   </p>
                   <p className="text-xs text-slate-500">
-                    Duration: {dtr.duration_minutes} mins
+                    Duration: {formatMinutes(dtr.duration_minutes)}
                   </p>
                 </div>
                 <StatusBadge status={dtr.status} />

@@ -6,6 +6,7 @@ import { Eye } from "lucide-react";
 import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
+import { formatMinutes } from "@/utils/date";
 
 type Row = {
   id: string;
@@ -41,7 +42,7 @@ export function DtrTable({
     {
       header: "Duration",
       accessorKey: "duration_minutes",
-      cell: ({ row }) => `${row.original.duration_minutes} mins`,
+      cell: ({ row }) => formatMinutes(row.original.duration_minutes),
     },
     {
       header: "Status",

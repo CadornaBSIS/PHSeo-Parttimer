@@ -2,6 +2,10 @@
   "name": "vite-seo-parttimer",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "ai:commit": "node scripts/ai-commit.mjs",
     "dev": "next dev",
@@ -30,6 +34,7 @@
     "lucide-react": "^0.379.0",
     "next": "16.1.6",
     "openai": "^6.29.0",
+    "pdf-lib": "^1.17.1",
     "pdfkit": "^0.15.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",

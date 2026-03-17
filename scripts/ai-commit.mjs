@@ -13,6 +13,19 @@ const DEFAULT_MODEL =
   PROVIDER === "gemini"
     ? process.env.AI_COMMIT_MODEL || process.env.GEMINI_COMMIT_MODEL || "gemini-2.5-flash"
     : process.env.AI_COMMIT_MODEL || process.env.OPENAI_COMMIT_MODEL || "gpt-5.3-codex";
+const EMOJI_BY_TYPE = {
+  feat: "✨",
+  fix: "🐛",
+  refactor: "♻️",
+  docs: "📝",
+  style: "🎨",
+  test: "✅",
+  chore: "🧹",
+  perf: "⚡",
+  build: "🏗️",
+  ci: "🤖",
+  revert: "⏪",
+};
 
 function runGit(args) {
   return execFileSync("git", args, {
@@ -42,13 +55,24 @@ function normalizeCommitMessage(message) {
 
   const lines = cleaned
     .split(/\r?\n/)
-    .map((line) => line.replace(/\s+$/g, ""))
+    .map((line) =>
+      line
+        .replace(/\s+$/g, "")
+        .replace(/^\*\s+/, "- ")
+        .replace(/^[•·]\s+/, "- "),
+    )
     .filter((line, index, all) => {
       if (line !== "") return true;
       return all[index - 1] !== "";
     });
 
-  const subject = truncate(lines[0].trim(), 72);
+  let subject = lines[0].trim();
+  if (!/^[^\w\s]+\s+/.test(subject)) {
+    const typeMatch = subject.match(/^([a-z]+)(\(|:)/);
+    const emoji = typeMatch ? EMOJI_BY_TYPE[typeMatch[1]] || "✨" : "✨";
+    subject = `${emoji} ${subject}`;
+  }
+  subject = truncate(subject, 72);
   const body = lines.slice(1).join("\n").trim();
   return body ? `${subject}\n\n${body}` : subject;
 }
@@ -58,10 +82,12 @@ async function generateCommitMessage(diff, files, branch) {
     "Write a detailed conventional commit message for this staged git diff.",
     "Return plain text only, with no markdown fences.",
     "Rules:",
-    "- First line: conventional commit subject in lowercase type(scope?): summary format when appropriate.",
+    "- First line: start with an appropriate emoji, then a conventional commit subject in lowercase type(scope?): summary format when appropriate.",
+    "- Example subject: ✨ feat(exports): redesign schedule pdf layout",
     "- Keep the first line under 72 characters.",
     "- After the subject, include a blank line, then a short explanatory paragraph.",
     "- Then include a blank line and 3-6 bullet points describing the key code changes.",
+    "- Every bullet must start with '-'. Do not use '*'.",
     "- End with a final short paragraph describing the impact or behavior change.",
     "- Be specific about the actual change.",
     "- Do not wrap the output in quotes.",

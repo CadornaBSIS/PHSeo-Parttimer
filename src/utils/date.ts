@@ -41,8 +41,9 @@ export function calculateDurationMinutes(
   endTime?: string | null,
 ) {
   if (!startTime || !endTime) return 0;
-  const start = parse(startTime, "HH:mm", new Date());
-  let end = parse(endTime, "HH:mm", new Date());
+  const normalizeTime = (value: string) => value.slice(0, 5);
+  const start = parse(normalizeTime(startTime), "HH:mm", new Date());
+  let end = parse(normalizeTime(endTime), "HH:mm", new Date());
   if (isBefore(end, start)) {
     end = addDays(end, 1); // overnight shift
   }

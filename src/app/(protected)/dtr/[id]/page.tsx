@@ -1,33 +1,45 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { format, parseISO } from "date-fns";
 import { FileText } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DtrForm } from "@/features/dtr/components/dtr-form";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth/session";
-import { formatWeekRange } from "@/utils/date";
+import { formatMinutes, formatWeekRange } from "@/utils/date";
 import { DtrStatus } from "@/types/db";
+
+export const revalidate = 0;
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+type DtrProfile = { full_name?: string | null };
 
 export default async function DtrDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const profile = await requireProfile();
-  const supabase = await createServerSupabaseClient();
+  const { id } = await params;
+  const supabase = await createServiceSupabaseClient();
 
   const { data, error } = await supabase
     .from("dtr_entries")
     .select(
       "id, employee_id, week_start, week_end, work_date, start_time, end_time, project_account, project_id, notes, image_link, duration_minutes, status, submitted_at, profiles(full_name), projects(id, name)",
     )
-    .eq("id", params.id)
-    .single();
+    .eq("id", id)
+    .maybeSingle();
 
   if (error || !data) notFound();
+
+  const employeeProfile: DtrProfile | undefined = Array.isArray(data.profiles)
+    ? data.profiles[0]
+    : data.profiles;
 
   const { data: projects } = await supabase
     .from("projects")
@@ -35,14 +47,13 @@ export default async function DtrDetailPage({
     .eq("is_active", true);
 
   const isOwner = data.employee_id === profile.id;
-  const canEdit =
-    profile.role === "employee" && isOwner && data.status === "draft";
+  const canEdit = profile.role === "employee" && isOwner && data.status === "draft";
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`DTR for ${data.work_date}`}
-        description={`Week ${formatWeekRange(data.week_start)}`}
+        title={`DTR for ${format(parseISO(data.work_date), "MM-dd-yyyy")}`}
+        description={`${employeeProfile?.full_name ?? "Employee"} - Week ${formatWeekRange(data.week_start)}`}
         actions={
           profile.role === "manager" ? (
             <Button asChild variant="outline">
@@ -60,9 +71,7 @@ export default async function DtrDetailPage({
           <CardTitle className="flex items-center gap-2">
             Status <StatusBadge status={data.status} />
           </CardTitle>
-          <p className="text-sm text-slate-500">
-            Duration: {data.duration_minutes} mins
-          </p>
+          <p className="text-sm text-slate-500">Duration: {formatMinutes(data.duration_minutes)}</p>
           {data.submitted_at ? (
             <p className="text-xs text-slate-500">
               Submitted {new Date(data.submitted_at).toLocaleString()}

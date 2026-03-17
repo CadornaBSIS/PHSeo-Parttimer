@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, addDays, parseISO } from "date-fns";
@@ -36,7 +37,12 @@ const fallbackProjects = [
   "Vegasbetgames",
 ].map((name, idx) => ({ id: `fallback-${idx}`, name }));
 
+function isPersistedProjectId(projectId: string | null | undefined) {
+  return Boolean(projectId && !projectId.startsWith("fallback-"));
+}
+
 export function DtrForm({ projects, initialData, readOnly: forceReadOnly }: Props) {
+  const router = useRouter();
   const projectOptions = projects.length ? projects : fallbackProjects;
   const baseDate = initialData?.work_date ?? format(new Date(), "yyyy-MM-dd");
   const monday = format(ensureMonday(parseISO(baseDate)), "yyyy-MM-dd");
@@ -139,7 +145,8 @@ export function DtrForm({ projects, initialData, readOnly: forceReadOnly }: Prop
       .map((id) => projectOptions.find((p) => p.id === id)?.name)
       .filter(Boolean) as string[];
     form.setValue("project_account", selectedNames.join(", "));
-    form.setValue("project_id", selectedProjects[0] ?? null);
+    const primaryProjectId = selectedProjects.find((projectId) => isPersistedProjectId(projectId)) ?? null;
+    form.setValue("project_id", primaryProjectId);
   }, [selectedProjects, form, projectOptions]);
 
   const duration = useMemo(
@@ -166,6 +173,11 @@ export function DtrForm({ projects, initialData, readOnly: forceReadOnly }: Prop
       }
       toast.success(result.success ?? "Saved");
       setStatus(submit ? "submitted" : "draft");
+      if (submit) {
+        router.push("/dashboard");
+        router.refresh();
+        return;
+      }
     } finally {
       setSubmitting(false);
     }
@@ -180,9 +192,6 @@ export function DtrForm({ projects, initialData, readOnly: forceReadOnly }: Prop
               <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Duration</p>
               <p className="text-2xl font-semibold text-slate-900">{formatMinutes(duration)}</p>
             </div>
-            <Badge variant="secondary" className="px-3 py-1 text-xs rounded-full">
-              Status: {status}
-            </Badge>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
