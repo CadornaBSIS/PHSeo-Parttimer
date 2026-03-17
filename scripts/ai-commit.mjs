@@ -1,7 +1,10 @@
 import "dotenv/config";
 import { GoogleGenAI } from "@google/genai";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import OpenAI from "openai";
 import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -27,15 +30,41 @@ function truncate(value, maxLength) {
   return value.length > maxLength ? `${value.slice(0, maxLength - 3)}...` : value;
 }
 
+function normalizeCommitMessage(message) {
+  const cleaned = message
+    .replace(/^```(?:\w+)?\r?\n?/g, "")
+    .replace(/\r?\n?```$/g, "")
+    .trim();
+
+  if (!cleaned) {
+    fail("The AI response did not include a commit message.");
+  }
+
+  const lines = cleaned
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+$/g, ""))
+    .filter((line, index, all) => {
+      if (line !== "") return true;
+      return all[index - 1] !== "";
+    });
+
+  const subject = truncate(lines[0].trim(), 72);
+  const body = lines.slice(1).join("\n").trim();
+  return body ? `${subject}\n\n${body}` : subject;
+}
+
 async function generateCommitMessage(diff, files, branch) {
   const prompt = [
-    "Write one concise conventional-commit message for this staged git diff.",
-    "Return only the commit subject line.",
+    "Write a detailed conventional commit message for this staged git diff.",
+    "Return plain text only, with no markdown fences.",
     "Rules:",
-    "- Use lowercase type(scope?): summary format when appropriate.",
-    "- Keep it under 72 characters.",
+    "- First line: conventional commit subject in lowercase type(scope?): summary format when appropriate.",
+    "- Keep the first line under 72 characters.",
+    "- After the subject, include a blank line, then a short explanatory paragraph.",
+    "- Then include a blank line and 3-6 bullet points describing the key code changes.",
+    "- End with a final short paragraph describing the impact or behavior change.",
     "- Be specific about the actual change.",
-    "- Do not wrap in quotes or markdown.",
+    "- Do not wrap the output in quotes.",
     `Current branch: ${branch || "unknown"}`,
     `Changed files: ${files.join(", ") || "unknown"}`,
     "",
@@ -79,7 +108,7 @@ async function generateCommitMessage(diff, files, branch) {
     fail("The AI response did not include a commit message.");
   }
 
-  return truncate(message.split(/\r?\n/)[0].trim(), 72);
+  return normalizeCommitMessage(message);
 }
 
 async function main() {
@@ -108,7 +137,15 @@ async function main() {
     return;
   }
 
-  execFileSync("git", ["commit", "-m", message], { stdio: "inherit" });
+  const tempDir = mkdtempSync(join(tmpdir(), "ai-commit-"));
+  const messageFile = join(tempDir, "COMMIT_EDITMSG");
+
+  try {
+    writeFileSync(messageFile, `${message}\n`, "utf8");
+    execFileSync("git", ["commit", "-F", messageFile], { stdio: "inherit" });
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 }
 
 main().catch((error) => {

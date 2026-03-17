@@ -91,4 +91,10 @@ Optional:
 - `GEMINI_COMMIT_MODEL` overrides the Gemini default (`gemini-2.5-flash`)
 - `OPENAI_COMMIT_MODEL` overrides the OpenAI default (`gpt-5.3-codex`)
 - `AI_COMMIT_MODEL` overrides either provider-specific model setting
-- `pnpm ai:commit --dry-run` prints the generated message without committing
+- `pnpm ai:commit --dry-run` prints the full generated commit message without committing
+
+The generated commit now includes:
+- a conventional commit subject
+- a short summary paragraph
+- a bullet list of concrete changes
+- a final impact paragraph
