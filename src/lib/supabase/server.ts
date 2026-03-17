@@ -1,17 +1,18 @@
 import { CookieOptions, createServerClient } from "@supabase/ssr";
 import { cookies, headers } from "next/headers";
 
-const supabaseUrlEnv = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKeyEnv = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+function getSupabasePublicConfig() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrlEnv || !supabaseAnonKeyEnv) {
-  throw new Error(
-    "Supabase URL and anon key must be set in environment variables.",
-  );
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      "Supabase URL and anon key must be set in environment variables.",
+    );
+  }
+
+  return { supabaseUrl, supabaseAnonKey };
 }
-
-const supabaseUrl: string = supabaseUrlEnv;
-const supabaseAnonKey: string = supabaseAnonKeyEnv;
 
 async function cookieAdapter() {
   const store = await cookies();
@@ -46,6 +47,7 @@ async function cookieAdapter() {
 }
 
 export async function createServerSupabaseClient() {
+  const { supabaseUrl, supabaseAnonKey } = getSupabasePublicConfig();
   const adapter = await cookieAdapter();
   const hdrs = await headers();
   return createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -55,6 +57,7 @@ export async function createServerSupabaseClient() {
 }
 
 export async function createServiceSupabaseClient() {
+  const { supabaseUrl } = getSupabasePublicConfig();
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
