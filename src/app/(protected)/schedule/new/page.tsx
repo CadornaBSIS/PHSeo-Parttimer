@@ -6,6 +6,10 @@ import { requireProfile } from "@/lib/auth/session";
 import { ensureMonday, computeWeekEnd } from "@/utils/date";
 import { format, addDays } from "date-fns";
 
+export const revalidate = 0;
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export default async function NewSchedulePage({
   searchParams,
 }: {

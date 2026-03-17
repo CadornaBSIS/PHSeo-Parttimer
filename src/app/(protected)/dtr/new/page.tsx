@@ -4,6 +4,10 @@ import { DtrForm } from "@/features/dtr/components/dtr-form";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth/session";
 
+export const revalidate = 0;
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export default async function NewDtrPage() {
   const profile = await requireProfile();
   if (profile.role !== "employee") redirect("/dtr");
