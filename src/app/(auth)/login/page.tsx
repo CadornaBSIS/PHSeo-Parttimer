@@ -21,7 +21,7 @@ export default async function LoginPage() {
             <span>Manager-provisioned access only</span>
           </div>
           <h1 className="text-4xl md:text-5xl font-semibold leading-tight">
-            ViteSeo Parttimer
+            PH SEO Parttimer
           </h1>
           <p className="text-lg text-slate-300">
             Internal scheduling & DTR platform for managers and employees. No

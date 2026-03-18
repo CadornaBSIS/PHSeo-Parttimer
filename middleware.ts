@@ -41,26 +41,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
-  // Manager-only guard for manager pages and APIs
-  const managerOnlyPatterns = [
-    /^\/employees/,
-    /^\/reports/,
-    /^\/api\/admin/,
-    /^\/api\/export/,
-  ];
-
-  if (session && managerOnlyPatterns.some((regex) => regex.test(pathname))) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", session.user.id)
-      .single();
-
-    if (profile?.role !== "manager") {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
-    }
-  }
-
   return res;
 }
 

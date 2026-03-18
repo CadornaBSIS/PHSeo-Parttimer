@@ -17,7 +17,7 @@ const jetBrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ViteSeo Parttimer | Internal Scheduling & DTR",
+  title: "PH SEO Parttimer | Internal Scheduling & DTR",
   description:
     "Secure internal platform for weekly scheduling, DTR capture, and manager oversight.",
 };
