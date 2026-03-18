@@ -15,6 +15,7 @@ type Row = {
   status: import("@/types/db").ScheduleStatus;
   submitted_at?: string | null;
   profiles?: { full_name?: string | null };
+  schedule_days?: { approval_status?: "for_approval" | "approved" | "not_approved" | null }[];
 };
 
 export function ScheduleTable({
@@ -24,6 +25,17 @@ export function ScheduleTable({
   data: Row[];
   isManager: boolean;
 }) {
+  const getReviewStatus = (row: Row) => {
+    const approvals = row.schedule_days ?? [];
+    if (!approvals.length) return null;
+    const values = approvals.map((day) => day.approval_status ?? "for_approval");
+    if (values.every((value) => value === "approved")) return "approved";
+    if (values.every((value) => value === "not_approved")) return "not_approved";
+    if (values.every((value) => value === "for_approval")) return "for_approval";
+    if (values.some((value) => value === "for_approval")) return "partially_reviewed";
+    return "reviewed";
+  };
+
   const columns: ColumnDef<Row>[] = [
     ...(isManager
       ? [
@@ -43,6 +55,21 @@ export function ScheduleTable({
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    },
+    {
+      id: "review_status",
+      header: "Review",
+      cell: ({ row }) => {
+        const reviewStatus = getReviewStatus(row.original);
+        if (!reviewStatus) return "--";
+        return (
+          <StatusBadge
+            status={
+              reviewStatus
+            }
+          />
+        );
+      },
     },
     {
       accessorKey: "submitted_at",

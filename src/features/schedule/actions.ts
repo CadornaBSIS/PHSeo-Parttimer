@@ -1,16 +1,43 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createServiceSupabaseClient } from "@/lib/supabase/server";
 import { scheduleFormSchema, ScheduleFormValues } from "./schema";
 import { createNotification } from "@/features/notifications/service";
 import { logAudit } from "@/features/audit/log";
+import { ScheduleApprovalStatus } from "@/types/db";
 
 export type ScheduleActionResponse = {
   error?: string;
   success?: string;
   scheduleId?: string;
 };
+
+async function notifyManagers(params: {
+  title: string;
+  message: string;
+  type: string;
+  link?: string | null;
+}) {
+  const serviceSupabase = await createServiceSupabaseClient();
+  const { data: managers } = await serviceSupabase
+    .from("profiles")
+    .select("id")
+    .eq("role", "manager")
+    .eq("status", "active");
+
+  if (!managers?.length) return;
+
+  await serviceSupabase.from("notifications").insert(
+    managers.map((manager) => ({
+      user_id: manager.id,
+      title: params.title,
+      message: params.message,
+      type: params.type,
+      link: params.link ?? null,
+    })),
+  );
+}
 
 export async function saveScheduleAction(
   payload: ScheduleFormValues,
@@ -33,6 +60,12 @@ export async function saveScheduleAction(
   const data = parsed.data;
   const weekStart = data.week_start;
   const weekEnd = data.week_end;
+  const { data: employeeProfile } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", session.user.id)
+    .maybeSingle();
+  const employeeName = employeeProfile?.full_name ?? "Employee";
 
   const { data: existing } = await supabase
     .from("schedules")
@@ -80,6 +113,7 @@ export async function saveScheduleAction(
 
   const dayPayload = data.days.map((day) => ({
     ...day,
+    approval_status: day.approval_status ?? "for_approval",
     schedule_id: scheduleId,
   }));
 
@@ -101,10 +135,9 @@ export async function saveScheduleAction(
     if (statusError) {
       return { error: statusError.message };
     }
-    await createNotification({
-      user_id: session.user.id,
-      title: "Schedule submitted",
-      message: `Week starting ${weekStart} submitted.`,
+    await notifyManagers({
+      title: `${employeeName} submitted schedule`,
+      message: `${employeeName} submitted the schedule for the week starting ${weekStart}.`,
       type: "schedule_submitted",
       link: `/schedule/${scheduleId}`,
     });
@@ -116,6 +149,7 @@ export async function saveScheduleAction(
     });
     revalidatePath("/schedule");
     revalidatePath(`/schedule/${scheduleId}`);
+    revalidatePath("/dashboard");
     return { success: "Schedule submitted", scheduleId };
   }
 
@@ -133,5 +167,98 @@ export async function saveScheduleAction(
     metadata: { week_start: weekStart },
   });
   revalidatePath("/schedule");
+  revalidatePath("/dashboard");
   return { success: "Schedule saved as draft", scheduleId };
+}
+
+export async function updateScheduleApprovalAction(
+  scheduleId: string,
+  approvals: { day_of_week: number; approval_status: ScheduleApprovalStatus }[],
+  finalize = true,
+): Promise<ScheduleActionResponse> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    return { error: "Unauthenticated" };
+  }
+
+  const { data: managerProfile } = await supabase
+    .from("profiles")
+    .select("role, full_name")
+    .eq("id", session.user.id)
+    .single();
+
+  if (managerProfile?.role !== "manager") {
+    return { error: "Only managers can review submitted schedules." };
+  }
+
+  const { data: schedule, error: scheduleError } = await supabase
+    .from("schedules")
+    .select("id, employee_id, week_start, status")
+    .eq("id", scheduleId)
+    .single();
+
+  if (scheduleError || !schedule) {
+    return { error: scheduleError?.message ?? "Schedule not found" };
+  }
+
+  if (schedule.status !== "submitted") {
+    return { error: "Only submitted schedules can be reviewed." };
+  }
+
+  for (const approval of approvals) {
+    const { error } = await supabase
+      .from("schedule_days")
+      .update({ approval_status: approval.approval_status })
+      .eq("schedule_id", scheduleId)
+      .eq("day_of_week", approval.day_of_week);
+
+    if (error) {
+      return { error: error.message };
+    }
+  }
+
+  const approvedCount = approvals.filter((item) => item.approval_status === "approved").length;
+  const notApprovedCount = approvals.filter((item) => item.approval_status === "not_approved").length;
+  const pendingCount = approvals.filter((item) => item.approval_status === "for_approval").length;
+
+  if (finalize && pendingCount > 0) {
+    return { error: "Review all days before saving the final review." };
+  }
+
+  if (finalize) {
+    await createNotification({
+      user_id: schedule.employee_id,
+      title: "Schedule reviewed",
+      message:
+        approvedCount || notApprovedCount
+          ? `Your submitted schedule was reviewed. Approved: ${approvedCount}, Not Approved: ${notApprovedCount}.`
+          : "Your submitted schedule is still marked for approval.",
+      type: "schedule_reviewed",
+      link: `/schedule/${scheduleId}`,
+    });
+  }
+
+  await logAudit({
+    action: finalize ? "schedule_reviewed" : "schedule_review_progress_saved",
+    target_type: "schedule",
+    target_id: scheduleId,
+    metadata: {
+      week_start: schedule.week_start,
+      approved_count: approvedCount,
+      not_approved_count: notApprovedCount,
+      pending_count: pendingCount,
+      finalized: finalize,
+      reviewer: managerProfile.full_name ?? session.user.id,
+    },
+  });
+
+  revalidatePath("/schedule");
+  revalidatePath(`/schedule/${scheduleId}`);
+  revalidatePath("/dashboard");
+
+  return { success: finalize ? "Schedule review saved" : "Schedule review draft saved", scheduleId };
 }

@@ -14,6 +14,7 @@ export interface Profile {
 }
 
 export type ScheduleStatus = "draft" | "submitted";
+export type ScheduleApprovalStatus = "for_approval" | "approved" | "not_approved";
 
 export interface Schedule {
   id: string;
@@ -34,6 +35,7 @@ export interface ScheduleDay {
   day_of_week: number;
   work_date: string;
   work_status: "working" | "day_off" | "leave" | "holiday" | "requested";
+  approval_status: ScheduleApprovalStatus;
   start_time: string | null;
   end_time: string | null;
   notes: string | null;

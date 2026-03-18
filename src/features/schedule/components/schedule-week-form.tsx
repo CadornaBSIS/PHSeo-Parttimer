@@ -10,20 +10,22 @@ import { WeeklyRangePicker } from "@/components/common/weekly-range-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { saveScheduleAction } from "../actions";
+import { saveScheduleAction, updateScheduleApprovalAction } from "../actions";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { ensureMonday } from "@/utils/date";
 import { useRouter } from "next/navigation";
-import { ScheduleStatus } from "@/types/db";
+import { Role, ScheduleStatus } from "@/types/db";
 
 type Props = {
   initialData?: Partial<ScheduleFormValues> & {
     status?: "draft" | "submitted";
   };
   readOnly?: boolean;
+  viewerRole?: Role;
+  scheduleId?: string;
+  reviewLocked?: boolean;
 };
 
 const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -37,6 +39,7 @@ function buildWeekDays(weekStart: string): WeekDay[] {
       day_of_week: idx + 1,
       work_date: format(date, "yyyy-MM-dd"),
       work_status: "working" as WeekDay["work_status"],
+      approval_status: "for_approval" as WeekDay["approval_status"],
       start_time: "09:00",
       end_time: "18:00",
       notes: "",
@@ -44,7 +47,13 @@ function buildWeekDays(weekStart: string): WeekDay[] {
   });
 }
 
-export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props) {
+export function ScheduleWeekForm({
+  initialData,
+  readOnly: forceReadOnly,
+  viewerRole = "employee",
+  scheduleId,
+  reviewLocked = false,
+}: Props) {
   const defaultWeekStart =
     initialData?.week_start ??
     format(ensureMonday(new Date()), "yyyy-MM-dd");
@@ -54,6 +63,14 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
 
+  const sortedInitialDays =
+    initialData?.days
+      ?.map((day) => ({
+        ...day,
+        approval_status: day.approval_status ?? "for_approval",
+      }))
+      .sort((a, b) => a.day_of_week - b.day_of_week);
+
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleFormSchema),
     defaultValues: {
@@ -62,7 +79,7 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
       week_end:
         initialData?.week_end ??
         format(addDays(parseISO(defaultWeekStart), 6), "yyyy-MM-dd"),
-      days: initialData?.days ?? buildWeekDays(defaultWeekStart),
+      days: sortedInitialDays ?? buildWeekDays(defaultWeekStart),
     },
   });
 
@@ -89,7 +106,12 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
     form.setValue("days", newDays);
   }, [watchWeekStart, form, initialized, initialData?.days]);
 
-  const readOnly = forceReadOnly || status === "submitted";
+  const isManager = viewerRole === "manager";
+  const reviewOnly = isManager && status === "submitted" && !reviewLocked;
+  const readOnly = forceReadOnly || (status === "submitted" && !reviewOnly);
+  const hasPendingApprovals = form
+    .watch("days")
+    .some((day) => day.approval_status === "for_approval");
 
   const handleRangeChange = useCallback(
     (range: { start: string; end: string }) => {
@@ -99,22 +121,56 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
     [form],
   );
 
-  const handleSubmit = async (submit: boolean) => {
+  const handleSubmit = async (submit: boolean, finalizeReview = true) => {
     setSubmitting(true);
     try {
+      if (reviewOnly) {
+        if (!scheduleId) {
+          toast.error("Schedule review is missing its schedule ID.");
+          return;
+        }
+        const result = await updateScheduleApprovalAction(
+          scheduleId,
+          form.getValues("days").map((day) => ({
+            day_of_week: day.day_of_week,
+            approval_status: day.approval_status,
+          })),
+          finalizeReview,
+        );
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success(result.success ?? "Schedule review saved");
+        router.replace("/schedule");
+        return;
+      }
+
       const valid = await form.trigger();
       if (!valid) {
         toast.error("Please fix validation errors.");
         return;
       }
       const values = form.getValues();
-      const result = await saveScheduleAction(values, submit);
+      const normalizedValues: ScheduleFormValues = {
+        ...values,
+        days: values.days.map((day) => ({
+          ...day,
+          approval_status: "for_approval",
+        })),
+      };
+      const result = await saveScheduleAction(normalizedValues, submit);
       if (result.error) {
         toast.error(result.error);
         return;
       }
       toast.success(result.success ?? "Saved");
       setStatus(submit ? "submitted" : "draft");
+      if (submit) {
+        router.push("/dashboard");
+        router.refresh();
+        return;
+      }
       router.refresh();
     } finally {
       setSubmitting(false);
@@ -122,6 +178,8 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
   };
 
   const dayFields = form.watch("days");
+  const showReviewResultOptions =
+    viewerRole === "manager" || (viewerRole === "employee" && status === "submitted");
 
   return (
     <div className="space-y-6">
@@ -141,13 +199,15 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
         </div>
       </div>
 
-      <WeeklyRangePicker
-        value={{
-          start: form.watch("week_start"),
-          end: form.watch("week_end"),
-        }}
-        onChange={handleRangeChange}
-      />
+      {!reviewOnly ? (
+        <WeeklyRangePicker
+          value={{
+            start: form.watch("week_start"),
+            end: form.watch("week_end"),
+          }}
+          onChange={handleRangeChange}
+        />
+      ) : null}
 
       <div className="overflow-auto scroll-section">
         <table className="w-full text-sm border border-border rounded-lg">
@@ -156,7 +216,7 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
               <th className="p-3 text-xs font-semibold text-slate-500">Day</th>
               <th className="p-3 text-xs font-semibold text-slate-500">Date</th>
               <th className="p-3 text-xs font-semibold text-slate-500">
-                Status
+                Availability
               </th>
               <th className="p-3 text-xs font-semibold text-slate-500">
                 Start
@@ -165,7 +225,7 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
                 End
               </th>
               <th className="p-3 text-xs font-semibold text-slate-500">
-                Notes
+                Status
               </th>
             </tr>
           </thead>
@@ -176,7 +236,7 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
                 className="border-t border-border hover:bg-slate-50/60"
               >
                 <td className="p-3 font-semibold text-slate-800">
-                  {dayLabels[idx]}
+                  {dayLabels[day.day_of_week - 1] ?? dayLabels[idx]}
                 </td>
                 <td className="p-3">
                   <Input
@@ -189,9 +249,10 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
                 <td className="p-3">
                   <Select
                     value={day.work_status}
-                    disabled={readOnly}
+                    disabled={readOnly || reviewOnly}
                     suppressHydrationWarning
                     onChange={(e) => {
+                      if (reviewOnly) return;
                       const next = [...form.getValues("days")];
                       next[idx].work_status = e.target.value as WeekDay["work_status"];
                       form.setValue("days", next);
@@ -208,8 +269,9 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
                   <Input
                     type="time"
                     value={day.start_time ?? ""}
-                    disabled={readOnly || day.work_status !== "working"}
+                    disabled={readOnly || reviewOnly || day.work_status !== "working"}
                     onChange={(e) => {
+                      if (reviewOnly) return;
                       const next = [...form.getValues("days")];
                       next[idx].start_time = e.target.value;
                       form.setValue("days", next);
@@ -220,8 +282,9 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
                   <Input
                     type="time"
                     value={day.end_time ?? ""}
-                    disabled={readOnly || day.work_status !== "working"}
+                    disabled={readOnly || reviewOnly || day.work_status !== "working"}
                     onChange={(e) => {
+                      if (reviewOnly) return;
                       const next = [...form.getValues("days")];
                       next[idx].end_time = e.target.value;
                       form.setValue("days", next);
@@ -229,17 +292,20 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
                   />
                 </td>
                 <td className="p-3">
-                  <Textarea
-                    value={day.notes ?? ""}
-                    disabled={readOnly}
+                  <Select
+                    value={day.approval_status}
+                    disabled={!reviewOnly}
+                    suppressHydrationWarning
                     onChange={(e) => {
                       const next = [...form.getValues("days")];
-                      next[idx].notes = e.target.value;
+                      next[idx].approval_status = e.target.value as WeekDay["approval_status"];
                       form.setValue("days", next);
                     }}
-                    className="min-h-[60px]"
-                    placeholder="Notes"
-                  />
+                  >
+                    <option value="for_approval">For Approval</option>
+                    {showReviewResultOptions ? <option value="approved">Approve</option> : null}
+                    {showReviewResultOptions ? <option value="not_approved">Not Approve</option> : null}
+                  </Select>
                 </td>
               </tr>
             ))}
@@ -248,37 +314,89 @@ export function ScheduleWeekForm({ initialData, readOnly: forceReadOnly }: Props
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => handleSubmit(false)}
-          disabled={submitting || readOnly}
-          suppressHydrationWarning
-        >
-          {submitting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
-          Save draft
-        </Button>
-        <Button
-          type="button"
-          onClick={() => handleSubmit(true)}
-          disabled={submitting || readOnly}
-          suppressHydrationWarning
-        >
-          {submitting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-          Submit week
-        </Button>
+        {!isManager && !reviewOnly ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleSubmit(false)}
+            disabled={submitting || readOnly}
+            suppressHydrationWarning
+          >
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            Save draft
+          </Button>
+        ) : null}
+        {reviewOnly ? (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleSubmit(false, false)}
+              disabled={submitting || reviewLocked}
+              suppressHydrationWarning
+            >
+              {submitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Save draft
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleSubmit(false, true)}
+              disabled={submitting || reviewLocked || hasPendingApprovals}
+              suppressHydrationWarning
+            >
+              {submitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Save review
+            </Button>
+          </>
+        ) : null}
+        {!isManager ? (
+          <Button
+            type="button"
+            variant="default"
+            onClick={() => handleSubmit(true)}
+            disabled={submitting || readOnly}
+            suppressHydrationWarning
+          >
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            Submit week
+          </Button>
+        ) : null}
       </div>
-      {readOnly ? (
+      {!reviewOnly && readOnly ? (
         <p className="text-xs text-slate-500">
           Submitted schedules are locked. Contact a manager for corrections.
+        </p>
+      ) : null}
+      {reviewOnly ? (
+        <div className="space-y-1 text-xs text-slate-500">
+          <p>
+            Managers can review submitted schedules by setting each day to Approve or Not Approve.
+          </p>
+          <p>
+            Use Save draft if the review is still undecided. Save review becomes available only when all days are reviewed.
+          </p>
+        </div>
+      ) : null}
+      {isManager && reviewLocked ? (
+        <p className="text-xs text-slate-500">
+          This schedule has already been reviewed. Review fields are now locked.
         </p>
       ) : null}
     </div>

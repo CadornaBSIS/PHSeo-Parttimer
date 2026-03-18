@@ -12,6 +12,7 @@ export const scheduleDaySchema = z
       "holiday",
       "requested",
     ]),
+    approval_status: z.enum(["for_approval", "approved", "not_approved"]),
     start_time: z.string().nullable().optional(),
     end_time: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),

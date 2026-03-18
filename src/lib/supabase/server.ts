@@ -1,4 +1,5 @@
 import { CookieOptions, createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies, headers } from "next/headers";
 
 function getSupabasePublicConfig() {
@@ -62,10 +63,10 @@ export async function createServiceSupabaseClient() {
   if (!serviceKey) {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
   }
-  const adapter = await cookieAdapter();
-  const hdrs = await headers();
-  return createServerClient(supabaseUrl, serviceKey, {
-    cookies: adapter,
-    headers: hdrs,
+  return createClient(supabaseUrl, serviceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
   });
 }
