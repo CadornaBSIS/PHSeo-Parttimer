@@ -1,4 +1,4 @@
-# ViteSeo Parttimer
+# PH SEO Parttimer
 
 Internal scheduling and DTR platform for managers and employees. Built with Next.js (App Router), Supabase Auth/Postgres, Tailwind, shadcn-style UI, and server-side PDF exports.
 

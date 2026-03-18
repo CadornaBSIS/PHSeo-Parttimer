@@ -38,7 +38,7 @@ export function AppHeader({ profile, onMenuClick }: HeaderProps) {
           <Menu className="h-5 w-5" />
         </button>
         <div>
-          <p className="text-xs text-slate-500">ViteSeo Parttimer</p>
+          <p className="text-xs text-slate-500">PH SEO Parttimer</p>
           <p className="text-base font-semibold text-slate-900">
             Internal Operations
           </p>

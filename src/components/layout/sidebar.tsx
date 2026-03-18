@@ -72,14 +72,14 @@ export function AppSidebar({ role, open }: SidebarProps) {
       <div className="px-5 py-6 flex items-center gap-3 border-b border-white/5">
         <Image
           src="/ViteSeo%20Logo.png"
-          alt="ViteSeo Parttimer logo"
+          alt="PH SEO Parttimer logo"
           width={40}
           height={40}
           className="h-10 w-10 object-contain"
           priority
         />
         <div>
-          <p className="text-sm text-slate-200">ViteSeo</p>
+          <p className="text-sm text-slate-200">PH SEO</p>
           <p className="text-lg font-semibold text-white leading-tight">
             Parttimer
           </p>

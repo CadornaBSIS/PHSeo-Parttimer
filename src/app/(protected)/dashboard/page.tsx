@@ -25,41 +25,45 @@ export default async function DashboardPage() {
   const weekEndStr = format(computeWeekEnd(monday), "yyyy-MM-dd");
 
   if (profile.role === "manager") {
-    const [{ count: employeeCount }, { count: schedulesSubmitted }, { count: schedulesDraft }, { count: dtrSubmitted }] =
-      await Promise.all([
-        supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase
-          .from("schedules")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "submitted"),
-        supabase
-          .from("schedules")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "draft"),
-        supabase
-          .from("dtr_entries")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "submitted"),
-      ]);
-
-    const { data: recentSchedules } = await supabase
-      .from("schedules")
-      .select("id, week_start, week_end, status, profiles(full_name)")
-      .order("updated_at", { ascending: false })
-      .limit(5);
-
-    const { data: recentDtr } = await supabase
-      .from("dtr_entries")
-      .select("id, work_date, status, duration_minutes, profiles(full_name)")
-      .order("updated_at", { ascending: false })
-      .limit(5);
-
-    const { data: notifications } = await supabase
-      .from("notifications")
-      .select("id, title, message, created_at, is_read")
-      .eq("user_id", profile.id)
-      .order("created_at", { ascending: false })
-      .limit(5);
+    const [
+      { count: employeeCount },
+      { count: schedulesSubmitted },
+      { count: schedulesDraft },
+      { count: dtrSubmitted },
+      { data: recentSchedules },
+      { data: recentDtr },
+      { data: notifications },
+    ] = await Promise.all([
+      supabase.from("profiles").select("*", { count: "exact", head: true }),
+      supabase
+        .from("schedules")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "submitted"),
+      supabase
+        .from("schedules")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "draft"),
+      supabase
+        .from("dtr_entries")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "submitted"),
+      supabase
+        .from("schedules")
+        .select("id, week_start, week_end, status, profiles(full_name)")
+        .order("updated_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("dtr_entries")
+        .select("id, work_date, status, duration_minutes, profiles(full_name)")
+        .order("updated_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("notifications")
+        .select("id, title, message, created_at, is_read")
+        .eq("user_id", profile.id)
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]);
 
     return (
       <div className="space-y-6">
@@ -200,35 +204,36 @@ export default async function DashboardPage() {
   }
 
   // Employee view
-  const { data: mySchedules } = await supabase
-    .from("schedules")
-    .select("*")
-    .eq("employee_id", profile.id)
-    .gte("week_start", weekStartStr)
-    .lte("week_end", weekEndStr)
-    .order("week_start", { ascending: false })
-    .limit(1);
-
-  const { data: myDtr } = await supabase
-    .from("dtr_entries")
-    .select("*")
-    .eq("employee_id", profile.id)
-    .gte("week_start", weekStartStr)
-    .lte("week_end", weekEndStr)
-    .order("work_date", { ascending: false })
-    .limit(1);
+  const [{ data: mySchedules }, { data: myDtr }, { data: myNotifications }] =
+    await Promise.all([
+      supabase
+        .from("schedules")
+        .select("*")
+        .eq("employee_id", profile.id)
+        .gte("week_start", weekStartStr)
+        .lte("week_end", weekEndStr)
+        .order("week_start", { ascending: false })
+        .limit(1),
+      supabase
+        .from("dtr_entries")
+        .select("*")
+        .eq("employee_id", profile.id)
+        .gte("week_start", weekStartStr)
+        .lte("week_end", weekEndStr)
+        .order("work_date", { ascending: false })
+        .limit(1),
+      supabase
+        .from("notifications")
+        .select("id, title, message, created_at, is_read")
+        .eq("user_id", profile.id)
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]);
 
   const schedule = mySchedules?.[0];
   const dtr = myDtr?.[0];
   const prettyStatus = (val?: string | null) =>
     val ? `${val.slice(0, 1).toUpperCase()}${val.slice(1)}` : "Not started";
-
-  const { data: myNotifications } = await supabase
-    .from("notifications")
-    .select("id, title, message, created_at, is_read")
-    .eq("user_id", profile.id)
-    .order("created_at", { ascending: false })
-    .limit(5);
 
   return (
     <div className="space-y-6">

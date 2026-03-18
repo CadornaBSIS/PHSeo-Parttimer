@@ -1,4 +1,4 @@
--- Core schema for ViteSeo Parttimer
+-- Core schema for PH SEO Parttimer
 create extension if not exists "uuid-ossp";
 create extension if not exists "pgcrypto";
 
