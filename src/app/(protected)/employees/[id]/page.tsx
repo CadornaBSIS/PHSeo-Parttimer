@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StatusBadge } from "@/components/common/status-badge";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth/session";
-import { formatWeekRange } from "@/utils/date";
+import { formatMinutes, formatWeekRange } from "@/utils/date";
 import { DtrStatus, ScheduleStatus } from "@/types/db";
 
 export const revalidate = 0;
@@ -70,8 +70,6 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
     schedule?: ScheduleRow;
     dtrCount: number;
     dtrMinutes: number;
-    latestDtrId?: string;
-    latestDtrStatus?: DtrStatus;
   };
 
   const weekMap = new Map<string, WeekBucket>();
@@ -96,8 +94,6 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
     };
     bucket.dtrCount += 1;
     bucket.dtrMinutes += d.duration_minutes ?? 0;
-    bucket.latestDtrId = bucket.latestDtrId ?? d.id;
-    bucket.latestDtrStatus = bucket.latestDtrStatus ?? d.status;
     weekMap.set(key, bucket);
   });
 
@@ -152,8 +148,8 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
                   </TableCell>
                   <TableCell>
                     {w.dtrCount ? (
-                      <span className="text-sm font-medium">
-                        {w.dtrCount} entries - {w.dtrMinutes} mins
+                        <span className="text-sm font-medium">
+                        {w.dtrCount} entries - {formatMinutes(w.dtrMinutes)}
                       </span>
                     ) : (
                       <span className="text-xs text-slate-500">No DTR</span>
@@ -168,10 +164,10 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
                         View schedule
                       </Link>
                     ) : null}
-                    {w.latestDtrId ? (
+                    {w.dtrCount ? (
                       <Link
                         className="text-sm font-semibold text-blue-600 hover:underline"
-                        href={`/dtr/${w.latestDtrId}`}
+                        href={`/employees/${employee.id}/dtr?week_start=${w.week_start}`}
                       >
                         View DTR
                       </Link>
@@ -261,7 +257,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
                     <TableCell>
                       <StatusBadge status={d.status} />
                     </TableCell>
-                    <TableCell>{d.duration_minutes} mins</TableCell>
+                    <TableCell>{formatMinutes(d.duration_minutes)}</TableCell>
                     <TableCell>
                       <Link
                         className="text-sm font-semibold text-blue-600 hover:underline"

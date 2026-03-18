@@ -64,13 +64,31 @@ export default async function ScheduleDetailPage({
       );
     }
 
+    const approvalStatuses =
+      data.schedule_days?.map((day) => day.approval_status ?? "for_approval") ?? [];
+    const hasReviewedDays = approvalStatuses.some((status) => status !== "for_approval");
+    const pendingCount = approvalStatuses.filter((status) => status === "for_approval").length;
+    const isReviewFinalized = hasReviewedDays && pendingCount === 0;
     const isOwner = data.employee_id === profile.id;
     const canEdit =
       profile.role === "employee" && isOwner && data.status === "draft";
+    const canReview =
+      profile.role === "manager" &&
+      data.status === "submitted" &&
+      pendingCount > 0;
 
     const employeeName = Array.isArray(data.profiles)
       ? data.profiles[0]?.full_name
       : data.profiles?.full_name;
+    const sortedScheduleDays =
+      data.schedule_days
+        ?.map((day) => ({
+          ...day,
+          approval_status: day.approval_status ?? "for_approval",
+        }))
+        .sort((a, b) => a.day_of_week - b.day_of_week) ?? undefined;
+    const approvedCount = approvalStatuses.filter((status) => status === "approved").length;
+    const notApprovedCount = approvalStatuses.filter((status) => status === "not_approved").length;
 
     return (
       <div className="space-y-6">
@@ -99,6 +117,31 @@ export default async function ScheduleDetailPage({
                 ? `Submitted ${new Date(data.submitted_at).toLocaleString()}`
                 : "Draft - editable"}
             </p>
+            {canReview ? (
+              <p className="text-xs text-slate-500">
+                Review the submitted schedule by setting each day to Approve or Not Approve.
+              </p>
+            ) : null}
+            {profile.role === "manager" && data.status === "submitted" && isReviewFinalized ? (
+              <p className="text-xs text-slate-500">
+                This schedule has already been reviewed. Review fields are now locked.
+              </p>
+            ) : null}
+            {profile.role === "manager" && data.status === "submitted" && canReview && hasReviewedDays ? (
+              <p className="text-xs text-slate-500">
+                This schedule has partially reviewed days. You can continue reviewing the remaining pending days.
+              </p>
+            ) : null}
+            {profile.role === "manager" ? (
+              <p className="text-xs text-slate-500">
+                Review summary: {approvedCount} approved, {notApprovedCount} not approved, {pendingCount} pending.
+              </p>
+            ) : null}
+            {profile.role === "employee" && data.status === "submitted" ? (
+              <p className="text-xs text-slate-500">
+                Review summary: {approvedCount} approved, {notApprovedCount} not approved, {pendingCount} pending.
+              </p>
+            ) : null}
             {!canEdit && profile.role === "employee" ? (
               <p className="flex items-center gap-2 text-xs text-slate-500">
                 <ShieldAlert className="h-4 w-4 text-amber-500" />
@@ -113,9 +156,12 @@ export default async function ScheduleDetailPage({
                 week_start: data.week_start,
                 week_end: data.week_end,
                 status: data.status as ScheduleStatus,
-                days: data.schedule_days ?? undefined,
+                days: sortedScheduleDays,
               }}
-              readOnly={!canEdit}
+              readOnly={!canEdit && !canReview}
+              viewerRole={profile.role}
+              scheduleId={data.id}
+              reviewLocked={isReviewFinalized}
             />
           </CardContent>
         </Card>
