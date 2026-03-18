@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PDFDocument as LibPdfDocument, StandardFonts, rgb } from "pdf-lib";
 import PDFDocument from "pdfkit";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -24,6 +25,7 @@ type ScheduleDay = {
   day_of_week: number;
   work_date: string;
   work_status: string;
+  approval_status?: "for_approval" | "approved" | "not_approved" | null;
   start_time?: string | null;
   end_time?: string | null;
   notes?: string | null;
@@ -33,6 +35,25 @@ type ScheduleProfile = {
   full_name?: string | null;
   role?: string | null;
 };
+
+function slugifyFilenamePart(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function formatFileDate(value: string) {
+  return value;
+}
+
+function formatApprovalStatus(value?: string | null) {
+  if (!value) return "For Approval";
+  if (value === "approved") return "Approve";
+  if (value === "not_approved") return "Not Approve";
+  return "For Approval";
+}
 
 function formatDate(value: string) {
   return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", {
@@ -105,7 +126,7 @@ export async function GET(
       ? (schedule.schedule_days as ScheduleDay[])
       : [];
 
-    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
     const buffers: Buffer[] = [];
     doc.on("data", (chunk) => buffers.push(chunk));
 
@@ -176,10 +197,10 @@ export async function GET(
     const columns = [
       { label: "Day", key: "day", x: PAGE_MARGIN + 18, width: 42 },
       { label: "Date", key: "date", x: PAGE_MARGIN + 72, width: 92 },
-      { label: "Status", key: "status", x: PAGE_MARGIN + 176, width: 94 },
+      { label: "Availability", key: "availability", x: PAGE_MARGIN + 176, width: 94 },
       { label: "Start", key: "start", x: PAGE_MARGIN + 282, width: 70 },
       { label: "End", key: "end", x: PAGE_MARGIN + 364, width: 70 },
-      { label: "Notes", key: "notes", x: PAGE_MARGIN + 446, width: 90 },
+      { label: "Status", key: "status", x: PAGE_MARGIN + 446, width: 90 },
     ];
 
     doc
@@ -214,23 +235,23 @@ export async function GET(
         .roundedRect(PAGE_MARGIN, rowY, CONTENT_WIDTH, rowHeight, 8)
         .fillAndStroke(rowFill, COLORS.line);
 
-      const noteText = day.notes?.trim() ? day.notes : "-";
       const values = [
         String(day.day_of_week),
         formatDate(day.work_date),
         day.work_status.replaceAll("_", " "),
         formatTime(day.start_time),
         formatTime(day.end_time),
-        noteText,
+        formatApprovalStatus(day.approval_status),
       ];
 
       columns.forEach((column, columnIndex) => {
         doc
           .fillColor(COLORS.ink)
-          .font(column.key === "status" ? "Helvetica-Bold" : "Helvetica")
+          .font(column.key === "availability" || column.key === "status" ? "Helvetica-Bold" : "Helvetica")
           .fontSize(10)
           .text(values[columnIndex], column.x, rowY + 9, {
             width: column.width,
+            lineBreak: false,
             ellipsis: true,
           });
       });
@@ -242,26 +263,55 @@ export async function GET(
       }
     });
 
-    const footerY = PAGE_HEIGHT - PAGE_MARGIN - 14;
-    doc
-      .font("Helvetica")
-      .fontSize(9)
-      .fillColor(COLORS.muted)
-      .text(
-        "Generated from the manager export view for internal scheduling review.",
-        PAGE_MARGIN,
-        footerY,
-        { width: CONTENT_WIDTH, align: "center" },
-      );
-
+    doc.flushPages();
     doc.end();
 
     const pdfBuffer = await pdfBufferPromise;
-    return new NextResponse(new Uint8Array(pdfBuffer), {
+    const normalizedPdf = await LibPdfDocument.load(pdfBuffer);
+    const helvetica = await normalizedPdf.embedFont(StandardFonts.Helvetica);
+    const helveticaBold = await normalizedPdf.embedFont(StandardFonts.HelveticaBold);
+    const footerText = "Generated from the manager export view for internal record review,";
+    const managerName = (profile.full_name ?? "").replace(/\s+/g, " ").trim();
+    const managerMark = managerName ? `Manager ${managerName}` : "Manager";
+    const footerFontSize = 8;
+    const managerFontSize = 8;
+    const footerTextWidth = helvetica.widthOfTextAtSize(footerText, footerFontSize);
+    const managerTextWidth = helveticaBold.widthOfTextAtSize(managerMark, managerFontSize);
+
+    normalizedPdf.getPages().forEach((page) => {
+      page.drawText(footerText, {
+        x: PAGE_MARGIN + (CONTENT_WIDTH - footerTextWidth) / 2,
+        y: 24,
+        size: footerFontSize,
+        font: helvetica,
+        color: rgb(100 / 255, 116 / 255, 139 / 255),
+      });
+      page.drawText(managerMark, {
+        x: PAGE_WIDTH - PAGE_MARGIN - managerTextWidth,
+        y: 18,
+        size: managerFontSize,
+        font: helveticaBold,
+        color: rgb(148 / 255, 163 / 255, 184 / 255),
+        opacity: 0.55,
+      });
+    });
+
+    const employeeName = employeeProfile?.full_name?.trim() || "employee";
+    const filename =
+      `ph-seo-parttimer-schedule-${slugifyFilenamePart(employeeName)}-` +
+      `${formatFileDate(schedule.week_start)}-to-${formatFileDate(schedule.week_end)}.pdf`;
+    normalizedPdf.setTitle(filename.replace(/\.pdf$/i, ""));
+    normalizedPdf.setSubject("PH SEO Parttimer schedule export");
+    normalizedPdf.setAuthor("PH SEO Parttimer");
+    normalizedPdf.setProducer("PH SEO Parttimer");
+    normalizedPdf.setCreator("PH SEO Parttimer");
+    const finalPdf = await normalizedPdf.save();
+
+    return new NextResponse(new Uint8Array(finalPdf), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename=schedule-${schedule.id}.pdf`,
+        "Content-Disposition": `inline; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
       },
     });
   } catch (error) {

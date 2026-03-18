@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Bell,
   CircleUserRound,
   LogOut,
   Menu,
@@ -14,6 +13,7 @@ import { Profile } from "@/types/db";
 import { Button } from "@/components/ui/button";
 import { signOutAction } from "@/features/auth/actions";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/layout/notification-bell";
 
 type HeaderProps = {
   profile: Profile;
@@ -45,10 +45,7 @@ export function AppHeader({ profile, onMenuClick }: HeaderProps) {
         </div>
       </div>
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5 text-slate-600" />
-          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent" />
-        </Button>
+        <NotificationBell userId={profile.id} />
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 bg-white hover:bg-slate-50">

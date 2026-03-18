@@ -21,6 +21,7 @@ type Props = {
   projects: { id: string; name: string }[];
   initialData?: Partial<DtrFormValues> & { status?: "draft" | "submitted" };
   readOnly?: boolean;
+  hideActions?: boolean;
 };
 
 const fallbackProjects = [
@@ -41,7 +42,12 @@ function isPersistedProjectId(projectId: string | null | undefined) {
   return Boolean(projectId && !projectId.startsWith("fallback-"));
 }
 
-export function DtrForm({ projects, initialData, readOnly: forceReadOnly }: Props) {
+export function DtrForm({
+  projects,
+  initialData,
+  readOnly: forceReadOnly,
+  hideActions = false,
+}: Props) {
   const router = useRouter();
   const projectOptions = projects.length ? projects : fallbackProjects;
   const baseDate = initialData?.work_date ?? format(new Date(), "yyyy-MM-dd");
@@ -403,33 +409,35 @@ export function DtrForm({ projects, initialData, readOnly: forceReadOnly }: Prop
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleSubmit(false)}
-              disabled={submitting || readOnly}
-            >
-              {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              Save draft
-            </Button>
-            <Button
-              type="button"
-              onClick={() => handleSubmit(true)}
-              disabled={submitting || readOnly}
-            >
-              {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-              Submit
-            </Button>
-          </div>
+          {!hideActions ? (
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleSubmit(false)}
+                disabled={submitting || readOnly}
+              >
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                Save draft
+              </Button>
+              <Button
+                type="button"
+                onClick={() => handleSubmit(true)}
+                disabled={submitting || readOnly}
+              >
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                Submit
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
 

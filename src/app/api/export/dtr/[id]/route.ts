@@ -25,6 +25,18 @@ const COLORS = {
 type DtrProfile = { full_name?: string | null };
 type DtrProject = { name?: string | null };
 
+function slugifyFilenamePart(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function formatFileDate(value: string) {
+  return value;
+}
+
 function formatDate(value: string) {
   return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", {
     month: "short",
@@ -293,13 +305,20 @@ export async function GET(
       opacity: 0.55,
     });
 
+    const employeeName = employeeProfile?.full_name?.trim() || "employee";
+    const filename = `ph-seo-parttimer-dtr-${slugifyFilenamePart(employeeName)}-${formatFileDate(entry.work_date)}.pdf`;
+    normalizedPdf.setTitle(filename.replace(/\.pdf$/i, ""));
+    normalizedPdf.setSubject("PH SEO Parttimer DTR export");
+    normalizedPdf.setAuthor("PH SEO Parttimer");
+    normalizedPdf.setProducer("PH SEO Parttimer");
+    normalizedPdf.setCreator("PH SEO Parttimer");
     const singlePagePdf = await normalizedPdf.save();
 
     return new NextResponse(new Uint8Array(singlePagePdf), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename=dtr-${entry.id}.pdf`,
+        "Content-Disposition": `inline; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
       },
     });
   } catch (error) {

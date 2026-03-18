@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createServiceSupabaseClient } from "@/lib/supabase/server";
 import { dtrFormSchema, DtrFormValues } from "./schema";
 import { calculateDurationMinutes } from "@/utils/date";
 import { createNotification } from "@/features/notifications/service";
@@ -12,6 +12,32 @@ export type DtrActionResponse = {
   success?: string;
   id?: string;
 };
+
+async function notifyManagers(params: {
+  title: string;
+  message: string;
+  type: string;
+  link?: string | null;
+}) {
+  const serviceSupabase = await createServiceSupabaseClient();
+  const { data: managers } = await serviceSupabase
+    .from("profiles")
+    .select("id")
+    .eq("role", "manager")
+    .eq("status", "active");
+
+  if (!managers?.length) return;
+
+  await serviceSupabase.from("notifications").insert(
+    managers.map((manager) => ({
+      user_id: manager.id,
+      title: params.title,
+      message: params.message,
+      type: params.type,
+      link: params.link ?? null,
+    })),
+  );
+}
 
 export async function saveDtrAction(
   payload: DtrFormValues,
@@ -29,6 +55,12 @@ export async function saveDtrAction(
     return { error: "Validation failed" };
   }
   const data = parsed.data;
+  const { data: employeeProfile } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", session.user.id)
+    .maybeSingle();
+  const employeeName = employeeProfile?.full_name ?? "Employee";
 
   // Enforce 1 DTR per employee per work date
   const existingDateQuery = supabase
@@ -117,6 +149,12 @@ export async function saveDtrAction(
       user_id: session.user.id,
       title: "DTR submitted",
       message: `DTR for ${data.work_date} submitted.`,
+      type: "dtr_submitted",
+      link: `/dtr/${entryId}`,
+    });
+    await notifyManagers({
+      title: `${employeeName} submitted DTR`,
+      message: `${employeeName} submitted a DTR for ${data.work_date}.`,
       type: "dtr_submitted",
       link: `/dtr/${entryId}`,
     });
