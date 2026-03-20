@@ -328,7 +328,7 @@ export function ReportsDashboard({
                   <p className="mb-1 text-sm font-semibold text-slate-900">Schedule distribution</p>
                   <p className="text-xs text-slate-500">See how much of the current workload is still in draft versus already submitted.</p>
                 </div>
-                <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center">
+                <div className="space-y-5">
                   <div className="mx-auto h-[220px] w-[220px] min-w-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -350,22 +350,24 @@ export function ReportsDashboard({
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="space-y-3 self-center">
+                  <div className="mx-auto max-w-[520px]">
+                    <div className="grid gap-3 sm:grid-cols-2">
                     {scheduleStatusData.map((entry) => (
                       <div
                         key={entry.name}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-slate-300 hover:bg-white"
+                        className="min-w-0 rounded-[22px] border border-slate-200 bg-white px-4 py-4 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                       >
                         <div className="flex items-center gap-3">
                           <span
-                            className="h-3 w-3 rounded-full"
+                            className="h-3 w-3 shrink-0 rounded-full"
                             style={{ backgroundColor: getToneColor(entry.tone) }}
                           />
-                          <span className="text-sm text-slate-600">{entry.name}</span>
+                          <span className="truncate text-sm font-medium text-slate-600">{entry.name}</span>
                         </div>
-                        <div className="mt-2 text-2xl font-semibold text-slate-950">{entry.value}</div>
+                        <div className="mt-3 text-2xl font-semibold leading-none text-slate-950">{entry.value}</div>
                       </div>
                     ))}
+                    </div>
                   </div>
                 </div>
               </div>
