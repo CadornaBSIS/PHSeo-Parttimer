@@ -3,6 +3,7 @@ import { PDFDocument as LibPdfDocument, StandardFonts, rgb } from "pdf-lib";
 import PDFDocument from "pdfkit";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { formatMinutes } from "@/utils/date";
+import { parseImageLinks } from "@/features/dtr/image-links";
 
 export const runtime = "nodejs";
 
@@ -109,6 +110,226 @@ function measureTextHeight(
 ) {
   doc.font(font).fontSize(fontSize);
   return doc.heightOfString(text, { width, lineGap });
+}
+
+const FOOTER_RESERVE = 110;
+const CONTENT_BOTTOM = PAGE_HEIGHT - FOOTER_RESERVE;
+const SECTION_GAP = 18;
+const SECTION_INNER_WIDTH = CONTENT_WIDTH - 40;
+
+type ImageLinkLine = {
+  text: string;
+  color: string;
+  link?: string;
+};
+
+function drawOverflowPageHeader(
+  doc: PDFKit.PDFDocument,
+  entryId: string,
+  workDate: string,
+  employeeName: string,
+) {
+  doc.addPage();
+  doc.rect(0, 0, PAGE_WIDTH, 92).fill(COLORS.header);
+  doc.fillColor("white").font("Helvetica-Bold").fontSize(12).text("PH SEO Parttimer", PAGE_MARGIN, 24);
+  doc.fontSize(16).text("Daily Time Record (continued)", PAGE_MARGIN, 42);
+  doc
+    .font("Helvetica")
+    .fontSize(9)
+    .fillColor("#E2E8F0")
+    .text(`DTR ID: ${entryId}`, PAGE_MARGIN, 66, { width: 240 });
+  doc
+    .font("Helvetica")
+    .fontSize(9)
+    .fillColor("#CBD5E1")
+    .text(`${employeeName} - ${formatDate(workDate)}`, PAGE_MARGIN + 240, 66, {
+      width: CONTENT_WIDTH - 240,
+      align: "right",
+    });
+}
+
+function wrapTextByWidth(
+  doc: PDFKit.PDFDocument,
+  text: string,
+  width: number,
+  font: "Helvetica" | "Helvetica-Bold",
+  fontSize: number,
+) {
+  doc.font(font).fontSize(fontSize);
+  const lines: string[] = [];
+  const paragraphs = text.replace(/\r\n/g, "\n").split("\n");
+
+  for (const paragraph of paragraphs) {
+    if (!paragraph) {
+      lines.push("");
+      continue;
+    }
+
+    let current = "";
+    for (const char of paragraph) {
+      const next = current + char;
+      if (!current || doc.widthOfString(next) <= width) {
+        current = next;
+      } else {
+        lines.push(current);
+        current = char;
+      }
+    }
+    lines.push(current);
+  }
+
+  return lines.length ? lines : [""];
+}
+
+function drawPaginatedTextSection(params: {
+  doc: PDFKit.PDFDocument;
+  title: string;
+  lines: string[];
+  currentY: number;
+  lineGap: number;
+  lineHeight: number;
+  textFontSize: number;
+  textColor: string;
+  onNewPage: () => void;
+}) {
+  const { doc, title, lineGap, lineHeight, textFontSize, textColor, onNewPage } = params;
+  let currentY = params.currentY;
+  let pending = [...params.lines];
+  let continuation = false;
+
+  while (pending.length) {
+    const headerHeight = 44;
+    const minBodyHeight = lineHeight;
+    if (currentY + headerHeight + minBodyHeight + 14 > CONTENT_BOTTOM) {
+      onNewPage();
+      currentY = 112;
+    }
+
+    const availableBody = CONTENT_BOTTOM - currentY - headerHeight - 14;
+    const linesPerPage = Math.max(1, Math.floor((availableBody + lineGap) / lineHeight));
+    const chunk = pending.slice(0, linesPerPage);
+    pending = pending.slice(linesPerPage);
+
+    const bodyHeight = Math.max(lineHeight, chunk.length * lineHeight - lineGap);
+    const sectionHeight = headerHeight + bodyHeight + 14;
+
+    doc
+      .roundedRect(PAGE_MARGIN, currentY, CONTENT_WIDTH, sectionHeight, 18)
+      .fillAndStroke("white", COLORS.line);
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(11)
+      .fillColor(COLORS.ink)
+      .text(continuation ? `${title} (continued)` : title, PAGE_MARGIN + 20, currentY + 20);
+
+    let textY = currentY + 44;
+    chunk.forEach((line) => {
+      doc
+        .font("Helvetica")
+        .fontSize(textFontSize)
+        .fillColor(textColor)
+        .text(line || " ", PAGE_MARGIN + 20, textY, {
+          width: SECTION_INNER_WIDTH,
+          lineGap,
+        });
+      textY += lineHeight;
+    });
+
+    currentY += sectionHeight + SECTION_GAP;
+    continuation = true;
+  }
+
+  return currentY;
+}
+
+function buildImageLinkLines(
+  doc: PDFKit.PDFDocument,
+  imageLinksRaw: string | null,
+) {
+  const parsed = parseImageLinks(imageLinksRaw);
+  if (!parsed.length) {
+    const fallback = imageLinksRaw?.trim() || "No image link attached.";
+    return {
+      lines: wrapTextByWidth(doc, fallback, SECTION_INNER_WIDTH, "Helvetica", 10).map((text) => ({
+        text: text || " ",
+        color: COLORS.muted,
+      })),
+    };
+  }
+
+  const lines: ImageLinkLine[] = [];
+  parsed.forEach((item, index) => {
+    const lineText = `${index + 1}. ${item.title ? `${item.title}: ` : ""}${item.url}`;
+    const wrapped = wrapTextByWidth(doc, lineText, SECTION_INNER_WIDTH, "Helvetica", 9);
+    wrapped.forEach((part) => {
+      lines.push({
+        text: part || " ",
+        color: "#2563EB",
+        link: item.url,
+      });
+    });
+  });
+  return { lines };
+}
+
+function drawPaginatedImageLinksSection(params: {
+  doc: PDFKit.PDFDocument;
+  lines: ImageLinkLine[];
+  currentY: number;
+  onNewPage: () => void;
+}) {
+  const { doc, lines, onNewPage } = params;
+  let currentY = params.currentY;
+  let pending = [...lines];
+  const lineGap = 2;
+  const lineHeight = 13;
+  let continuation = false;
+
+  while (pending.length) {
+    const headerHeight = 44;
+    const minBodyHeight = lineHeight;
+    if (currentY + headerHeight + minBodyHeight + 14 > CONTENT_BOTTOM) {
+      onNewPage();
+      currentY = 112;
+    }
+
+    const availableBody = CONTENT_BOTTOM - currentY - headerHeight - 14;
+    const linesPerPage = Math.max(1, Math.floor((availableBody + lineGap) / lineHeight));
+    const chunk = pending.slice(0, linesPerPage);
+    pending = pending.slice(linesPerPage);
+
+    const bodyHeight = Math.max(lineHeight, chunk.length * lineHeight - lineGap);
+    const sectionHeight = headerHeight + bodyHeight + 14;
+
+    doc
+      .roundedRect(PAGE_MARGIN, currentY, CONTENT_WIDTH, sectionHeight, 18)
+      .fillAndStroke(COLORS.panel, COLORS.panelBorder);
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(11)
+      .fillColor(COLORS.ink)
+      .text(continuation ? "Image links (continued)" : "Image links", PAGE_MARGIN + 20, currentY + 20);
+
+    let textY = currentY + 44;
+    chunk.forEach((line) => {
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .fillColor(line.color)
+        .text(line.text, PAGE_MARGIN + 20, textY, {
+          width: SECTION_INNER_WIDTH,
+          lineGap,
+          link: line.link,
+          underline: Boolean(line.link),
+        });
+      textY += lineHeight;
+    });
+
+    currentY += sectionHeight + SECTION_GAP;
+    continuation = true;
+  }
+
+  return currentY;
 }
 
 export async function GET(
@@ -221,67 +442,48 @@ export async function GET(
     drawSummaryChip(doc, PAGE_MARGIN + 260, summaryChipsY, "DURATION", formatMinutes(entry.duration_minutes), 122);
 
     const notesY = workSummaryY + summaryHeight + 20;
-    const notesTitleY = notesY + 20;
-    const notesTextY = notesTitleY + 24;
-    const imageBlockHeight = 70;
-    const imageBlockGap = 18;
-    const footerReserve = 110;
-    const maxNotesHeight = PAGE_HEIGHT - footerReserve - imageBlockHeight - imageBlockGap - notesTextY;
     const notesText = entry.notes?.trim() || "No notes provided.";
-    let notesFontSize = 10;
-    let notesLineGap = 6;
-    let notesTextHeight = measureTextHeight(doc, notesText, CONTENT_WIDTH - 40, "Helvetica", notesFontSize, notesLineGap);
+    const notesLines = wrapTextByWidth(doc, notesText, SECTION_INNER_WIDTH, "Helvetica", 10);
+    let currentY = drawPaginatedTextSection({
+      doc,
+      title: "Notes",
+      lines: notesLines,
+      currentY: notesY,
+      lineGap: 6,
+      lineHeight: 16,
+      textFontSize: 10,
+      textColor: COLORS.ink,
+      onNewPage: () =>
+        drawOverflowPageHeader(
+          doc,
+          entry.id,
+          entry.work_date,
+          employeeProfile?.full_name ?? "Employee",
+        ),
+    });
 
-    while (notesTextHeight > maxNotesHeight && notesFontSize > 8) {
-      notesFontSize -= 0.5;
-      notesLineGap = Math.max(3, notesLineGap - 1);
-      notesTextHeight = measureTextHeight(doc, notesText, CONTENT_WIDTH - 40, "Helvetica", notesFontSize, notesLineGap);
-    }
-
-    const notesHeight = Math.max(122, Math.min(maxNotesHeight + 24, notesTextHeight + 44));
-
-    doc
-      .roundedRect(PAGE_MARGIN, notesY, CONTENT_WIDTH, notesHeight, 18)
-      .fillAndStroke("white", COLORS.line);
-    doc.font("Helvetica-Bold").fontSize(11).fillColor(COLORS.ink).text("Notes", PAGE_MARGIN + 20, notesTitleY);
-    doc
-      .font("Helvetica")
-      .fontSize(notesFontSize)
-      .fillColor(COLORS.ink)
-      .text(notesText, PAGE_MARGIN + 20, notesTextY, {
-        width: CONTENT_WIDTH - 40,
-        height: notesHeight - 44,
-        lineGap: notesLineGap,
-      });
-
-    const imagesY = notesY + notesHeight + imageBlockGap;
-    doc
-      .roundedRect(PAGE_MARGIN, imagesY, CONTENT_WIDTH, imageBlockHeight, 18)
-      .fillAndStroke(COLORS.panel, COLORS.panelBorder);
-    doc.font("Helvetica-Bold").fontSize(11).fillColor(COLORS.ink).text("Images Link", PAGE_MARGIN + 20, imagesY + 20);
-    doc
-      .font("Helvetica")
-      .fontSize(10)
-      .fillColor(entry.image_link ? "#2563EB" : COLORS.muted)
-      .text(entry.image_link ?? "No image link attached.", PAGE_MARGIN + 20, imagesY + 42, {
-        width: CONTENT_WIDTH - 40,
-        link: entry.image_link ?? undefined,
-        underline: Boolean(entry.image_link),
-        lineGap: 2,
-      });
+    const imageLinkLines = buildImageLinkLines(doc, entry.image_link);
+    drawPaginatedImageLinksSection({
+      doc,
+      lines: imageLinkLines.lines,
+      currentY,
+      onNewPage: () =>
+        drawOverflowPageHeader(
+          doc,
+          entry.id,
+          entry.work_date,
+          employeeProfile?.full_name ?? "Employee",
+        ),
+    });
 
     doc.end();
 
     const pdfBuffer = await pdfBufferPromise;
     const normalizedPdf = await LibPdfDocument.load(pdfBuffer);
-    while (normalizedPdf.getPageCount() > 1) {
-      normalizedPdf.removePage(normalizedPdf.getPageCount() - 1);
-    }
 
     const footerText = "Generated from the manager export view for internal record review,";
     const managerName = (profile.full_name ?? "").replace(/\s+/g, " ").trim();
     const managerMark = managerName ? `Manager ${managerName}` : "Manager";
-    const page = normalizedPdf.getPage(0);
     const helvetica = await normalizedPdf.embedFont(StandardFonts.Helvetica);
     const helveticaBold = await normalizedPdf.embedFont(StandardFonts.HelveticaBold);
     const footerFontSize = 8;
@@ -289,20 +491,22 @@ export async function GET(
     const footerTextWidth = helvetica.widthOfTextAtSize(footerText, footerFontSize);
     const managerTextWidth = helveticaBold.widthOfTextAtSize(managerMark, managerFontSize);
 
-    page.drawText(footerText, {
-      x: PAGE_MARGIN + (CONTENT_WIDTH - footerTextWidth) / 2,
-      y: 24,
-      size: footerFontSize,
-      font: helvetica,
-      color: rgb(100 / 255, 116 / 255, 139 / 255),
-    });
-    page.drawText(managerMark, {
-      x: PAGE_WIDTH - PAGE_MARGIN - managerTextWidth,
-      y: 18,
-      size: managerFontSize,
-      font: helveticaBold,
-      color: rgb(148 / 255, 163 / 255, 184 / 255),
-      opacity: 0.55,
+    normalizedPdf.getPages().forEach((page) => {
+      page.drawText(footerText, {
+        x: PAGE_MARGIN + (CONTENT_WIDTH - footerTextWidth) / 2,
+        y: 24,
+        size: footerFontSize,
+        font: helvetica,
+        color: rgb(100 / 255, 116 / 255, 139 / 255),
+      });
+      page.drawText(managerMark, {
+        x: PAGE_WIDTH - PAGE_MARGIN - managerTextWidth,
+        y: 18,
+        size: managerFontSize,
+        font: helveticaBold,
+        color: rgb(148 / 255, 163 / 255, 184 / 255),
+        opacity: 0.55,
+      });
     });
 
     const employeeName = employeeProfile?.full_name?.trim() || "employee";
@@ -312,9 +516,9 @@ export async function GET(
     normalizedPdf.setAuthor("PH SEO Parttimer");
     normalizedPdf.setProducer("PH SEO Parttimer");
     normalizedPdf.setCreator("PH SEO Parttimer");
-    const singlePagePdf = await normalizedPdf.save();
+    const finalPdf = await normalizedPdf.save();
 
-    return new NextResponse(new Uint8Array(singlePagePdf), {
+    return new NextResponse(new Uint8Array(finalPdf), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

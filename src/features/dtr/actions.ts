@@ -6,6 +6,7 @@ import { dtrFormSchema, DtrFormValues } from "./schema";
 import { calculateDurationMinutes } from "@/utils/date";
 import { createNotification } from "@/features/notifications/service";
 import { logAudit } from "@/features/audit/log";
+import { normalizeImageLinkInput } from "./image-links";
 
 export type DtrActionResponse = {
   error?: string;
@@ -82,6 +83,7 @@ export async function saveDtrAction(
     data.start_time ?? undefined,
     data.end_time ?? undefined,
   );
+  const normalizedImageLink = normalizeImageLinkInput(data.image_link);
 
   let entryId = data.id;
 
@@ -107,7 +109,7 @@ export async function saveDtrAction(
         project_account: data.project_account,
         project_id: data.project_id,
         notes: data.notes,
-        image_link: data.image_link,
+        image_link: normalizedImageLink,
         duration_minutes: duration,
       })
       .eq("id", entryId);
@@ -125,7 +127,7 @@ export async function saveDtrAction(
         project_account: data.project_account,
         project_id: data.project_id,
         notes: data.notes,
-        image_link: data.image_link,
+        image_link: normalizedImageLink,
         duration_minutes: duration,
         status: "draft",
       })

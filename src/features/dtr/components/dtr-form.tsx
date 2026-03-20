@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { saveDtrAction } from "../actions";
+import { parseImageLinks } from "../image-links";
 import { calculateDurationMinutes, formatMinutes, ensureMonday } from "@/utils/date";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -91,6 +92,11 @@ export function DtrForm({
   const startTimeWatch = form.watch("start_time");
   const endTimeWatch = form.watch("end_time");
   const workDateWatch = form.watch("work_date");
+  const imageLinkWatch = form.watch("image_link");
+  const parsedImageLinks = useMemo(
+    () => parseImageLinks(imageLinkWatch),
+    [imageLinkWatch],
+  );
 
   type TimeParts = { hour: number; minute: number; am: boolean };
   const parseTime = useCallback((val?: string | null): TimeParts => {
@@ -400,13 +406,42 @@ export function DtrForm({
           </div>
 
           <div className="space-y-2">
-            <Label>Image link (e.g., screenshot)</Label>
-            <Input
-              placeholder="https://..."
-              disabled={readOnly}
-              className="rounded-2xl"
-              {...form.register("image_link")}
-            />
+            <Label>Image links (one per line)</Label>
+            {readOnly ? (
+              <div className="rounded-2xl border border-slate-200 bg-white/90 p-3">
+                {parsedImageLinks.length ? (
+                  <div className="space-y-2">
+                    {parsedImageLinks.map((item, index) => (
+                      <a
+                        key={`${item.url}-${index}`}
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block break-all text-sm text-blue-700 underline underline-offset-2 hover:text-blue-800"
+                      >
+                        {index + 1}. {item.title ? `${item.title}: ` : ""}
+                        {item.url}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 break-all">
+                    {imageLinkWatch?.trim() || "No image link attached."}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <Textarea
+                placeholder={"Screenshot 1: https://...\nScreenshot 2: https://..."}
+                disabled={readOnly}
+                className="rounded-2xl bg-white/90"
+                rows={4}
+                {...form.register("image_link")}
+              />
+            )}
+            <p className="text-xs text-slate-500">
+              Format each line as <span className="font-medium">Title: https://...</span> or just the URL.
+            </p>
           </div>
 
           {!hideActions ? (
