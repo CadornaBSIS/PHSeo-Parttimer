@@ -17,7 +17,7 @@ export default async function LoginPage() {
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800">
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
         <Image
-          src="/PH%20SEO%20LOGO.png"
+          src="/ph-seo-logo.png"
           alt=""
           aria-hidden
           width={1200}

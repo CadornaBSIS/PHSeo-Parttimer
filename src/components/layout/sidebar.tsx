@@ -83,7 +83,7 @@ export function AppSidebar({ profile, role, open }: SidebarProps) {
     >
       <div className="px-5 py-6 flex items-center gap-3 border-b border-white/5">
         <Image
-          src="/PH%20SEO%20LOGO.png"
+          src="/ph-seo-logo.png"
           alt="PH SEO logo"
           width={40}
           height={40}

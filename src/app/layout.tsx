@@ -7,9 +7,9 @@ export const metadata: Metadata = {
   description:
     "Secure internal platform for weekly scheduling, DTR capture, and manager oversight.",
   icons: {
-    icon: "/PH%20SEO%20LOGO.png",
-    shortcut: "/PH%20SEO%20LOGO.png",
-    apple: "/PH%20SEO%20LOGO.png",
+    icon: "/ph-seo-logo.png",
+    shortcut: "/ph-seo-logo.png",
+    apple: "/ph-seo-logo.png",
   },
 };
 
