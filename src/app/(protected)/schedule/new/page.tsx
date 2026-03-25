@@ -38,6 +38,7 @@ export default async function NewSchedulePage({
       <PageHeader
         title="New weekly schedule"
         description="Save as draft first, then submit when ready."
+        userId={profile.id}
       />
       <div className="card">
         <ScheduleWeekForm

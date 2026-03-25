@@ -26,6 +26,7 @@ export default async function EmployeesPage() {
       <PageHeader
         title="Employees"
         description="Manager-only employee management and provisioning."
+        userId={profile.id}
         actions={
           <div className="hidden md:flex items-center gap-2 text-slate-500 text-sm">
             <UsersRound className="h-4 w-4" />

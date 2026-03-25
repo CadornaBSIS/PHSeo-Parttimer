@@ -95,6 +95,7 @@ export default async function ScheduleDetailPage({
         <PageHeader
           title={`Schedule ${formatWeekRange(data.week_start)}`}
           description={employeeName ?? "Schedule"}
+          userId={profile.id}
           actions={
             profile.role === "manager" ? (
               <Button asChild variant="outline">

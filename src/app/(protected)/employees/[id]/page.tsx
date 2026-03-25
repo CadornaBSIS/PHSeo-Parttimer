@@ -106,6 +106,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
       <PageHeader
         title={employee.full_name}
         description={`${employee.role} - ${employee.email}`}
+        userId={profile.id}
       />
 
       {employeeError || scheduleError || dtrError ? (

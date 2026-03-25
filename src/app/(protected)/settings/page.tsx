@@ -10,6 +10,7 @@ export default async function SettingsPage() {
       <PageHeader
         title="Settings"
         description="Account and platform settings."
+        userId={profile.id}
       />
       <Card>
         <CardHeader>

@@ -42,6 +42,7 @@ export default async function DtrListPage({
       <PageHeader
         title="DTR"
         description="Actual work logs. Drafts are editable until submitted."
+        userId={profile.id}
         actions={
           profile.role === "employee" ? (
             <Button asChild>

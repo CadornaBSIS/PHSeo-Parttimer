@@ -72,6 +72,7 @@ export default async function DashboardPage() {
         <PageHeader
           title="Manager Dashboard"
           description="Monitor schedules, DTR submissions, and team activity."
+          userId={profile.id}
         />
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
@@ -285,6 +286,7 @@ export default async function DashboardPage() {
       <PageHeader
         title="My Dashboard"
         description={`Week of ${formatWeekRange(weekStartStr)}`}
+        userId={profile.id}
       />
 
       <Card className="overflow-hidden border-slate-200">

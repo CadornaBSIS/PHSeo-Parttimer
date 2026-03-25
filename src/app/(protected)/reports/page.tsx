@@ -191,6 +191,7 @@ export default async function ReportsPage() {
       <PageHeader
         title="Reports"
         description="Interactive manager analytics for schedules, DTR activity, and review flow."
+        userId={profile.id}
       />
       <ReportsDashboard
         snapshot={snapshot}

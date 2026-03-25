@@ -54,6 +54,7 @@ export default async function DtrDetailPage({
       <PageHeader
         title={`DTR for ${format(parseISO(data.work_date), "MM-dd-yyyy")}`}
         description={`${employeeProfile?.full_name ?? "Employee"} - Week ${formatWeekRange(data.week_start)}`}
+        userId={profile.id}
         actions={
           profile.role === "manager" ? (
             <Button asChild variant="outline">

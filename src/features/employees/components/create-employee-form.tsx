@@ -13,7 +13,7 @@ export function CreateEmployeeForm() {
   const [form, setForm] = useState({
     full_name: "",
     email: "",
-    department: "",
+    department: "Part Time",
     employee_code: "",
     status: "active",
     password: "",
@@ -21,6 +21,7 @@ export function CreateEmployeeForm() {
 
   const onSubmit = () => {
     startTransition(async () => {
+      const usesAutoPassword = form.password.trim().length < 8;
       const result = await createEmployeeAction(form);
       if (result.error) {
         toast.error(result.error);
@@ -35,11 +36,19 @@ export function CreateEmployeeForm() {
           description: result.tempPassword,
           duration: 8000,
         });
+        if (usesAutoPassword) {
+          try {
+            await navigator.clipboard.writeText(result.tempPassword);
+            toast.success("Auto-generated password copied to clipboard.");
+          } catch {
+            toast.error("Could not copy password automatically.");
+          }
+        }
       }
       setForm({
         full_name: "",
         email: "",
-        department: "",
+        department: "Part Time",
         employee_code: "",
         status: "active",
         password: "",
@@ -69,12 +78,14 @@ export function CreateEmployeeForm() {
         </div>
         <div className="space-y-1">
           <Label>Department</Label>
-          <Input
+          <Select
             value={form.department}
             onChange={(e) =>
               setForm((f) => ({ ...f, department: e.target.value }))
             }
-          />
+          >
+            <option value="Part Time">Part Time</option>
+          </Select>
         </div>
         <div className="space-y-1">
           <Label>Employee code</Label>

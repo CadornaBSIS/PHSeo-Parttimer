@@ -10,6 +10,7 @@ export default async function ProfilePage() {
       <PageHeader
         title="Profile"
         description="Your personal information."
+        userId={profile.id}
       />
       <Card>
         <CardHeader>

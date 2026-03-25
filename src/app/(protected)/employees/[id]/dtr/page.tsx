@@ -99,6 +99,7 @@ export default async function EmployeeWeeklyDtrPage({
             ? `${formatWeekRange(week_start)} - ${employee.email}`
             : employee.email
         }
+        userId={profile.id}
         actions={
           <div className="flex items-center gap-2">
             <Button asChild variant="outline">

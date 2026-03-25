@@ -42,6 +42,7 @@ export default async function ScheduleListPage({
       <PageHeader
         title="Schedules"
         description="Plan your weekly schedule. Drafts are editable until submitted."
+        userId={profile.id}
         actions={
           profile.role === "employee" ? (
             <Button asChild>

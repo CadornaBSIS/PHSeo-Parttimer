@@ -23,6 +23,7 @@ export default async function NewDtrPage() {
       <PageHeader
         title="New DTR entry"
         description="Log your actual work for the selected week."
+        userId={profile.id}
       />
       <div className="card">
         <DtrForm projects={projects ?? []} />
