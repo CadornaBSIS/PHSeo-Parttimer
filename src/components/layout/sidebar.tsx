@@ -83,8 +83,8 @@ export function AppSidebar({ profile, role, open }: SidebarProps) {
     >
       <div className="px-5 py-6 flex items-center gap-3 border-b border-white/5">
         <Image
-          src="/ViteSeo%20Logo.png"
-          alt="PH SEO Parttimer logo"
+          src="/PH%20SEO%20LOGO.png"
+          alt="PH SEO logo"
           width={40}
           height={40}
           className="h-10 w-10 object-contain"
@@ -123,7 +123,10 @@ export function AppSidebar({ profile, role, open }: SidebarProps) {
       <div className="px-4 pb-3">
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <button className="w-full inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 bg-white/5 hover:bg-white/10">
+            <button
+              id="sidebar-profile-menu-trigger"
+              className="w-full inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 bg-white/5 hover:bg-white/10"
+            >
               <CircleUserRound className="h-5 w-5 text-slate-200" />
               <div className="text-left">
                 <p className="text-sm font-semibold text-white leading-tight">

@@ -3,22 +3,14 @@
 import {
   Menu,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 import { Profile } from "@/types/db";
-import { NotificationBell } from "@/components/layout/notification-bell";
 
 type HeaderProps = {
   profile: Profile;
   onMenuClick?: () => void;
 };
 
-export function AppHeader({ profile, onMenuClick }: HeaderProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
-
-  if (!mounted) return null;
-
+export function AppHeader({ profile: _profile, onMenuClick }: HeaderProps) {
   return (
     <header
       className="sticky top-0 z-30 flex items-center justify-between bg-white/90 backdrop-blur border-b border-border px-4 py-3 md:hidden"
@@ -31,9 +23,7 @@ export function AppHeader({ profile, onMenuClick }: HeaderProps) {
           <Menu className="h-5 w-5" />
         </button>
       </div>
-      <div className="ml-auto flex items-center gap-3">
-        <NotificationBell userId={profile.id} />
-      </div>
+      <div className="ml-auto" />
     </header>
   );
 }

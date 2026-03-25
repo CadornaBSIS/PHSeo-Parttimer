@@ -18,6 +18,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   const [pending, startTransition] = useTransition();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
+  const triggerId = `notification-menu-trigger-${userId}`;
 
   const unreadCount = useMemo(
     () => notifications.filter((item) => !item.is_read).length,
@@ -80,7 +81,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   return (
     <DropdownMenu.Root open={open} onOpenChange={setOpen}>
       <DropdownMenu.Trigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button id={triggerId} variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5 text-slate-600" />
           {unreadCount ? (
             <span className="absolute right-1 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-white">

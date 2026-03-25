@@ -9,6 +9,7 @@
   "scripts": {
     "ai:commit": "node scripts/ai-commit.mjs",
     "dev": "next dev",
+    "dev:webpack": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
