@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   CalendarClock,
@@ -16,7 +16,7 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { useTransition } from "react";
+import { useEffect, useMemo, useTransition } from "react";
 import { Role } from "@/types/db";
 import { Profile } from "@/types/db";
 import { cn } from "@/lib/utils";
@@ -71,6 +71,29 @@ const navItems = [
 export function AppSidebar({ profile, role, open }: SidebarProps) {
   const [pending, startTransition] = useTransition();
   const pathname = usePathname();
+  const router = useRouter();
+  const prefetchRoutes = useMemo(() => {
+    const baseRoutes = ["/dashboard", "/schedule", "/dtr", "/settings", "/profile"];
+    const managerRoutes = ["/employees", "/reports"];
+    const listFilters = [
+      "/schedule?status=draft",
+      "/schedule?status=submitted",
+      "/dtr?status=draft",
+      "/dtr?status=submitted",
+    ];
+
+    if (role === "manager") {
+      return [...baseRoutes, ...managerRoutes, ...listFilters];
+    }
+
+    return [...baseRoutes, "/schedule/new", "/dtr/new", ...listFilters];
+  }, [role]);
+
+  useEffect(() => {
+    for (const route of prefetchRoutes) {
+      router.prefetch(route);
+    }
+  }, [prefetchRoutes, router]);
 
   return (
     <aside
@@ -108,6 +131,7 @@ export function AppSidebar({ profile, role, open }: SidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch
                 className={cn(
                   "sidebar-link",
                   active && "sidebar-link-active text-white",
@@ -151,6 +175,7 @@ export function AppSidebar({ profile, role, open }: SidebarProps) {
             <DropdownMenu.Item asChild>
               <Link
                 href="/profile"
+                prefetch
                 className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-800 hover:bg-slate-100"
               >
                 <User className="h-4 w-4" />

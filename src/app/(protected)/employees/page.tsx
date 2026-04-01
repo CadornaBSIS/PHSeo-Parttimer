@@ -71,7 +71,7 @@ export default async function EmployeesPage() {
                 </TableCell>
                 <TableCell>
                   <Button variant="ghost" size="sm" asChild>
-                    <Link href={`/employees/${emp.id}`}>
+                    <Link href={`/employees/${emp.id}`} prefetch={false}>
                       <Eye className="h-4 w-4" />
                       View
                     </Link>

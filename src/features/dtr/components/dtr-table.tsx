@@ -53,7 +53,7 @@ export function DtrTable({
       header: "",
       cell: ({ row }) => (
         <Button variant="ghost" size="sm" asChild>
-          <Link href={`/dtr/${row.original.id}`}>
+          <Link href={`/dtr/${row.original.id}`} prefetch={false}>
             <Eye className="h-4 w-4" />
             View
           </Link>
