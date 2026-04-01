@@ -21,7 +21,9 @@ export function AppShell({ profile, children }: Props) {
           profile={profile}
           onMenuClick={() => setSidebarOpen((prev) => !prev)}
         />
-        <main className="flex-1 px-6 pb-10 pt-4">{children}</main>
+        <main className="flex-1 px-4 pb-8 pt-3 sm:px-6 sm:pb-10 sm:pt-4">
+          {children}
+        </main>
       </div>
       {sidebarOpen ? (
         <div

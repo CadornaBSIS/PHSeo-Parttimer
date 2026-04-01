@@ -32,7 +32,11 @@ export function PageHeader({
       </div>
       {actions || userId ? (
         <div className="flex items-center gap-2">
-          {userId ? <NotificationBell userId={userId} /> : null}
+          {userId ? (
+            <div className="hidden md:block">
+              <NotificationBell userId={userId} />
+            </div>
+          ) : null}
           {actions}
         </div>
       ) : null}

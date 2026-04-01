@@ -116,7 +116,7 @@ export default async function DashboardPage() {
                 .map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+                  className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
                     <p className="text-sm font-semibold text-slate-900">
@@ -153,7 +153,7 @@ export default async function DashboardPage() {
                 .map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+                  className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
                     <p className="text-sm font-semibold text-slate-900">
@@ -161,7 +161,7 @@ export default async function DashboardPage() {
                     </p>
                     <p className="text-xs text-slate-500">{item.work_date}</p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     <Badge variant="secondary">
                       {formatMinutes(item.duration_minutes)}
                     </Badge>
@@ -382,7 +382,7 @@ export default async function DashboardPage() {
             {schedule ? (
               <>
                 <div
-                  className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+                  className={`flex flex-col gap-2 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
                   schedule.status === "submitted"
                     ? "border-emerald-200 bg-emerald-50"
                     : "border-amber-200 bg-amber-50"
@@ -432,7 +432,7 @@ export default async function DashboardPage() {
           <CardContent className="space-y-3">
             {dtr ? (
               <>
-                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{dtr.work_date}</p>
                     <p className="text-xs text-slate-500">
@@ -471,7 +471,7 @@ export default async function DashboardPage() {
 
         <Card className="border-slate-200 lg:col-span-2">
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+            <CardTitle className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span>Notifications</span>
               <Badge variant="secondary">{unreadNotifications} unread</Badge>
             </CardTitle>
@@ -521,7 +521,7 @@ export default async function DashboardPage() {
             {(myRecentSchedules ?? []).map((item) => (
               <div
                 key={item.id}
-                className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2"
+                className="flex flex-col gap-2 rounded-lg border border-slate-200 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
@@ -555,7 +555,7 @@ export default async function DashboardPage() {
             {(myRecentDtr ?? []).map((item) => (
               <div
                 key={item.id}
-                className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2"
+                className="flex flex-col gap-2 rounded-lg border border-slate-200 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <p className="text-sm font-semibold text-slate-900">

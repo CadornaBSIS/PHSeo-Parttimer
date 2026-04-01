@@ -95,7 +95,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
         align="end"
         sideOffset={10}
         className={cn(
-          "z-50 w-[360px] rounded-2xl border border-border bg-white p-2 shadow-2xl",
+          "z-50 w-[calc(100vw-1.5rem)] max-w-[360px] rounded-2xl border border-border bg-white p-2 shadow-2xl",
         )}
       >
         <div className="flex items-center justify-between px-2 py-2">
