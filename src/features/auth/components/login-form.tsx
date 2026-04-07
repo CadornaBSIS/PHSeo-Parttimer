@@ -1,6 +1,4 @@
 "use client";
-
-import Link from "next/link";
 import { useActionState, useTransition } from "react";
 import { Mail, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -58,15 +56,12 @@ export function LoginForm() {
           {state.error}
         </p>
       ) : null}
-      <div className="flex items-center justify-between text-sm">
-        <Link
-          href="/forgot-password"
-          className="text-accent hover:text-accent-dark font-medium"
-        >
-          Forgot password?
-        </Link>
-        <span className="text-slate-400">
-          Manager-provisioned accounts only
+      <div className="flex items-start justify-between gap-3 text-sm">
+        <span className="text-xs leading-snug text-slate-400">
+          Password changes are handled by managers on request. Self-service reset is disabled.
+        </span>
+        <span className="text-xs font-medium text-slate-300">
+          Manager-provisioned only
         </span>
       </div>
       <Button

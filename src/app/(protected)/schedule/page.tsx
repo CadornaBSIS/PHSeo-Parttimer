@@ -17,7 +17,7 @@ export default async function ScheduleListPage({
 
   let query = supabase
     .from("schedules")
-    .select("id, week_start, week_end, status, submitted_at, profiles(full_name), schedule_days(approval_status)")
+    .select("id, employee_id, week_start, week_end, status, submitted_at, profiles(full_name), schedule_days(approval_status)")
     .order("week_start", { ascending: false });
 
   if (profile.role === "employee") {
@@ -78,7 +78,13 @@ export default async function ScheduleListPage({
       </div>
 
       <div className="card">
-        <ScheduleTable data={rows} isManager={profile.role === "manager"} />
+        <ScheduleTable
+          data={rows}
+          isManager={profile.role === "manager"}
+          statusFilter={searchParams.status}
+          employeeId={profile.role === "employee" ? profile.id : undefined}
+          realtime
+        />
       </div>
     </div>
   );

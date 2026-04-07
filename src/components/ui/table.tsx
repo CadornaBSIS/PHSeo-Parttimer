@@ -48,7 +48,7 @@ const TableHead = ({
 }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
   <th
     className={cn(
-      "h-11 px-4 text-left align-middle text-xs font-semibold text-slate-500",
+      "h-11 px-3 py-2 sm:px-4 text-left align-middle text-xs font-semibold text-slate-500",
       className,
     )}
     {...props}
@@ -61,7 +61,7 @@ const TableCell = ({
 }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
   <td
     className={cn(
-      "p-4 align-middle text-sm text-slate-800 whitespace-nowrap",
+      "px-3 py-2 sm:px-4 sm:py-3 align-middle text-sm text-slate-800 whitespace-normal sm:whitespace-nowrap",
       className,
     )}
     {...props}

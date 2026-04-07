@@ -126,65 +126,121 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
         <CardHeader>
           <CardTitle>Weekly summary</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Week</TableHead>
-                <TableHead>Schedule</TableHead>
-                <TableHead>DTR entries</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {weekSummaries.map((w) => (
-                <TableRow key={w.week_start}>
-                  <TableCell>{formatWeekRange(w.week_start)}</TableCell>
-                  <TableCell>
-                    {w.schedule ? (
-                      <StatusBadge status={w.schedule.status} />
-                    ) : (
-                      <span className="text-xs text-slate-500">No schedule</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {w.dtrCount ? (
-                        <span className="text-sm font-medium">
-                        {w.dtrCount} entries - {formatMinutes(w.dtrMinutes)}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-slate-500">No DTR</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="space-x-3">
-                    {w.schedule ? (
-                      <Link
-                        className="text-sm font-semibold text-accent hover:underline"
-                        href={`/schedule/${w.schedule.id}`}
-                      >
-                        View schedule
-                      </Link>
-                    ) : null}
-                    {w.dtrCount ? (
-                      <Link
-                        className="text-sm font-semibold text-blue-600 hover:underline"
-                        href={`/employees/${employee.id}/dtr?week_start=${w.week_start}`}
-                      >
-                        View DTR
-                      </Link>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!weekSummaries.length ? (
+        <CardContent className="space-y-4">
+          <div className="hidden sm:block overflow-x-auto">
+            <Table className="min-w-[720px]">
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={4} className="text-sm text-slate-500">
-                    No weekly data yet.
-                  </TableCell>
+                  <TableHead>Week</TableHead>
+                  <TableHead>Schedule</TableHead>
+                  <TableHead>DTR entries</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {weekSummaries.map((w) => (
+                  <TableRow key={w.week_start}>
+                    <TableCell>{formatWeekRange(w.week_start)}</TableCell>
+                    <TableCell>
+                      {w.schedule ? (
+                        <StatusBadge status={w.schedule.status} />
+                      ) : (
+                        <span className="text-xs text-slate-500">No schedule</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {w.dtrCount ? (
+                        <span className="text-sm font-medium">
+                          {w.dtrCount} entries - {formatMinutes(w.dtrMinutes)}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-500">No DTR</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="space-x-3 whitespace-nowrap">
+                      {w.schedule ? (
+                        <Link
+                          className="text-sm font-semibold text-accent hover:underline"
+                          href={`/schedule/${w.schedule.id}`}
+                        >
+                          View schedule
+                        </Link>
+                      ) : null}
+                      {w.dtrCount ? (
+                        <Link
+                          className="text-sm font-semibold text-blue-600 hover:underline"
+                          href={`/employees/${employee.id}/dtr?week_start=${w.week_start}`}
+                        >
+                          View DTR
+                        </Link>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!weekSummaries.length ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-sm text-slate-500">
+                      No weekly data yet.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="grid gap-3 sm:hidden">
+            {weekSummaries.map((w) => (
+              <div
+                key={w.week_start}
+                className="rounded-xl border border-border bg-card p-4 shadow-card space-y-3"
+              >
+                <div className="text-sm font-semibold text-slate-900">
+                  {formatWeekRange(w.week_start)}
+                </div>
+                <div className="flex items-center justify-between text-sm text-slate-600">
+                  <span>Schedule</span>
+                  {w.schedule ? (
+                    <StatusBadge status={w.schedule.status} />
+                  ) : (
+                    <span className="text-xs text-slate-500">No schedule</span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between text-sm text-slate-600">
+                  <span>DTR entries</span>
+                  {w.dtrCount ? (
+                    <span className="text-sm font-medium text-slate-900">
+                      {w.dtrCount} • {formatMinutes(w.dtrMinutes)}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-500">No DTR</span>
+                  )}
+                </div>
+                <div className="flex items-center justify-end gap-3">
+                  {w.schedule ? (
+                    <Link
+                      className="text-sm font-semibold text-accent hover:underline"
+                      href={`/schedule/${w.schedule.id}`}
+                    >
+                      View schedule
+                    </Link>
+                  ) : null}
+                  {w.dtrCount ? (
+                    <Link
+                      className="text-sm font-semibold text-blue-600 hover:underline"
+                      href={`/employees/${employee.id}/dtr?week_start=${w.week_start}`}
+                    >
+                      View DTR
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+            {!weekSummaries.length ? (
+              <div className="rounded-xl border border-border bg-card p-4 text-sm text-slate-500">
+                No weekly data yet.
+              </div>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
 
@@ -193,47 +249,87 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
           <CardHeader>
             <CardTitle>Recent schedules</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Week</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(schedules ?? []).map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell>{formatWeekRange(s.week_start)}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={s.status} />
-                    </TableCell>
-                    <TableCell>
+          <CardContent className="space-y-4">
+            <div className="hidden sm:block overflow-x-auto">
+              <Table className="min-w-[640px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Week</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Submitted</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(schedules ?? []).map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell>{formatWeekRange(s.week_start)}</TableCell>
+                      <TableCell>
+                        <StatusBadge status={s.status} />
+                      </TableCell>
+                      <TableCell>
+                        {s.submitted_at
+                          ? new Date(s.submitted_at).toLocaleDateString()
+                          : "-"}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Link
+                          className="text-sm font-semibold text-accent hover:underline"
+                          href={`/schedule/${s.id}`}
+                        >
+                          View
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {!schedules?.length ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-sm text-slate-500">
+                        No schedules yet.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="grid gap-3 sm:hidden">
+              {(schedules ?? []).map((s) => (
+                <div
+                  key={s.id}
+                  className="rounded-xl border border-border bg-card p-4 shadow-card space-y-2"
+                >
+                  <div className="text-sm font-semibold text-slate-900">
+                    {formatWeekRange(s.week_start)}
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-slate-600">
+                    <span>Status</span>
+                    <StatusBadge status={s.status} />
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-slate-600">
+                    <span>Submitted</span>
+                    <span className="text-sm font-medium text-slate-900">
                       {s.submitted_at
                         ? new Date(s.submitted_at).toLocaleDateString()
                         : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Link
-                        className="text-sm font-semibold text-accent hover:underline"
-                        href={`/schedule/${s.id}`}
-                      >
-                        View
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {!schedules?.length ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-sm text-slate-500">
-                      No schedules yet.
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
+                    </span>
+                  </div>
+                  <div className="flex justify-end">
+                    <Link
+                      className="text-sm font-semibold text-accent hover:underline"
+                      href={`/schedule/${s.id}`}
+                    >
+                      View
+                    </Link>
+                  </div>
+                </div>
+              ))}
+              {!schedules?.length ? (
+                <div className="rounded-xl border border-border bg-card p-4 text-sm text-slate-500">
+                  No schedules yet.
+                </div>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
 
@@ -241,43 +337,81 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
           <CardHeader>
             <CardTitle>Recent DTR</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(dtrs ?? []).map((d) => (
-                  <TableRow key={d.id}>
-                    <TableCell>{d.work_date}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={d.status} />
-                    </TableCell>
-                    <TableCell>{formatMinutes(d.duration_minutes)}</TableCell>
-                    <TableCell>
-                      <Link
-                        className="text-sm font-semibold text-blue-600 hover:underline"
-                        href={`/dtr/${d.id}`}
-                      >
-                        View
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {!dtrs?.length ? (
+          <CardContent className="space-y-4">
+            <div className="hidden sm:block overflow-x-auto">
+              <Table className="min-w-[560px]">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={4} className="text-sm text-slate-500">
-                      No DTR entries.
-                    </TableCell>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead />
                   </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {(dtrs ?? []).map((d) => (
+                    <TableRow key={d.id}>
+                      <TableCell>{d.work_date}</TableCell>
+                      <TableCell>
+                        <StatusBadge status={d.status} />
+                      </TableCell>
+                      <TableCell>{formatMinutes(d.duration_minutes)}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Link
+                          className="text-sm font-semibold text-blue-600 hover:underline"
+                          href={`/dtr/${d.id}`}
+                        >
+                          View
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {!dtrs?.length ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-sm text-slate-500">
+                        No DTR entries.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="grid gap-3 sm:hidden">
+              {(dtrs ?? []).map((d) => (
+                <div
+                  key={d.id}
+                  className="rounded-xl border border-border bg-card p-4 shadow-card space-y-2"
+                >
+                  <div className="text-sm font-semibold text-slate-900">
+                    {d.work_date}
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-slate-600">
+                    <span>Status</span>
+                    <StatusBadge status={d.status} />
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-slate-600">
+                    <span>Duration</span>
+                    <span className="text-sm font-medium text-slate-900">
+                      {formatMinutes(d.duration_minutes)}
+                    </span>
+                  </div>
+                  <div className="flex justify-end">
+                    <Link
+                      className="text-sm font-semibold text-blue-600 hover:underline"
+                      href={`/dtr/${d.id}`}
+                    >
+                      View
+                    </Link>
+                  </div>
+                </div>
+              ))}
+              {!dtrs?.length ? (
+                <div className="rounded-xl border border-border bg-card p-4 text-sm text-slate-500">
+                  No DTR entries.
+                </div>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
       </div>

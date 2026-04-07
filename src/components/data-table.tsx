@@ -1,5 +1,6 @@
 "use client";
 
+import { ReactNode } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -21,45 +22,104 @@ export function DataTable<T>({ columns, data }: DataTableProps<T>) {
     getCoreRowModel: getCoreRowModel(),
   });
 
+  const rows = table.getRowModel().rows;
+  const leafHeaders = table.getHeaderGroups().at(-1)?.headers ?? [];
+
+  const renderHeaderLabel = (columnId: string): ReactNode => {
+    const header = leafHeaders.find((h) => h.column.id === columnId);
+    if (!header || header.isPlaceholder) return null;
+    const content = flexRender(header.column.columnDef.header, header.getContext());
+    if (content === "" || content === null) return null;
+    return content;
+  };
+
   return (
-    <table className="w-full text-sm">
-      <thead className="bg-slate-50">
-        {table.getHeaderGroups().map((headerGroup) => (
-          <tr key={headerGroup.id} className="border-b border-border">
-            {headerGroup.headers.map((header) => (
-              <th
-                key={header.id}
-                className="px-4 py-3 text-left text-xs font-semibold text-slate-500"
-              >
-                {header.isPlaceholder
-                  ? null
-                  : flexRender(header.column.columnDef.header, header.getContext())}
-              </th>
-            ))}
-          </tr>
-        ))}
-      </thead>
-      <tbody>
-        {table.getRowModel().rows.map((row) => (
-          <tr key={row.id} className="border-b border-border hover:bg-slate-50/70">
-            {row.getVisibleCells().map((cell) => (
-              <td key={cell.id} className="px-4 py-3">
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </td>
-            ))}
-          </tr>
-        ))}
-        {!table.getRowModel().rows.length ? (
-          <tr>
-            <td
-              className="px-4 py-3 text-sm text-slate-500"
-              colSpan={Math.max(table.getVisibleFlatColumns().length, 1)}
+    <div className="space-y-3">
+      {/* Mobile: stacked cards */}
+      <div className="grid gap-3 sm:hidden">
+        {rows.length ? (
+          rows.map((row) => (
+            <div
+              key={row.id}
+              className="rounded-xl border border-border bg-card shadow-card p-4 space-y-3"
             >
-              No data
-            </td>
-          </tr>
-        ) : null}
-      </tbody>
-    </table>
+              {row.getVisibleCells().map((cell) => {
+                const label = renderHeaderLabel(cell.column.id);
+                return (
+                  <div
+                    key={cell.id}
+                    className="flex items-start justify-between gap-3 text-sm"
+                  >
+                    {label ? (
+                      <span className="min-w-[96px] shrink-0 text-xs font-semibold text-slate-500">
+                        {label}
+                      </span>
+                    ) : null}
+                    <div className="flex-1 text-right text-slate-800">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))
+        ) : (
+          <div className="rounded-xl border border-border bg-card p-4 text-sm text-slate-500">
+            No data
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: traditional table with horizontal scroll safeguard */}
+      <div className="hidden sm:block">
+        <div className="w-full overflow-x-auto rounded-xl border border-border bg-card shadow-card">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="bg-slate-50">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id} className="border-b border-border">
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="px-4 py-3 text-left text-xs font-semibold text-slate-500"
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className="border-b border-border hover:bg-slate-50/70"
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="px-4 py-3">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {!rows.length ? (
+                <tr>
+                  <td
+                    className="px-4 py-3 text-sm text-slate-500"
+                    colSpan={Math.max(table.getVisibleFlatColumns().length, 1)}
+                  >
+                    No data
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   );
 }

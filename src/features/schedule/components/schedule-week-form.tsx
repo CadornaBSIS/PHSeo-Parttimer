@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { saveScheduleAction, updateScheduleApprovalAction } from "../actions";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -168,7 +169,6 @@ export function ScheduleWeekForm({
       setStatus(submit ? "submitted" : "draft");
       if (submit) {
         router.push("/dashboard");
-        router.refresh();
         return;
       }
       router.refresh();
@@ -180,6 +180,43 @@ export function ScheduleWeekForm({
   const dayFields = form.watch("days");
   const showReviewResultOptions =
     viewerRole === "manager" || (viewerRole === "employee" && status === "submitted");
+
+  // Live status/days updates when another user reviews this schedule
+  useEffect(() => {
+    if (!scheduleId) return;
+    const supabase = createBrowserSupabaseClient();
+
+    const reload = async () => {
+      const { data } = await supabase
+        .from("schedules")
+        .select("status, schedule_days(*)")
+        .eq("id", scheduleId)
+        .maybeSingle();
+      if (data?.status) setStatus(data.status as ScheduleStatus);
+      if (data?.schedule_days) {
+        const sortedDays =
+          data.schedule_days
+            .map((day) => ({ ...day, approval_status: day.approval_status ?? "for_approval" }))
+            .sort((a, b) => a.day_of_week - b.day_of_week);
+        form.setValue("days", sortedDays);
+      }
+    };
+
+    const channel = supabase
+      .channel(`schedule:${scheduleId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "schedules", filter: `id=eq.${scheduleId}` },
+        () => {
+          void reload();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [form, scheduleId]);
 
   return (
     <div className="space-y-6">

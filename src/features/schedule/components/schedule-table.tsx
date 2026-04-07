@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { Eye } from "lucide-react";
+import { useEffect, useState } from "react";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +12,7 @@ import { formatWeekRange } from "@/utils/date";
 
 type Row = {
   id: string;
+  employee_id?: string;
   week_start: string;
   week_end: string;
   status: import("@/types/db").ScheduleStatus;
@@ -21,10 +24,86 @@ type Row = {
 export function ScheduleTable({
   data,
   isManager,
+  statusFilter,
+  employeeId,
+  realtime = true,
 }: {
   data: Row[];
   isManager: boolean;
+  statusFilter?: string;
+  employeeId?: string;
+  realtime?: boolean;
 }) {
+  const [rows, setRows] = useState<Row[]>(data);
+
+  useEffect(() => {
+    setRows(data);
+  }, [data]);
+
+  useEffect(() => {
+    if (!realtime) return;
+    const supabase = createBrowserSupabaseClient();
+
+    const fetchRow = async (id: string) => {
+      const { data: row } = await supabase
+        .from("schedules")
+        .select(
+          "id, employee_id, week_start, week_end, status, submitted_at, profiles(full_name), schedule_days(approval_status)",
+        )
+        .eq("id", id)
+        .maybeSingle();
+
+      if (!row) {
+        setRows((prev) => prev.filter((item) => item.id !== id));
+        return;
+      }
+
+      // Respect filters
+      if (employeeId && row.employee_id !== employeeId) return;
+      if (statusFilter && row.status !== statusFilter) {
+        setRows((prev) => prev.filter((item) => item.id !== id));
+        return;
+      }
+
+      const normalized = {
+        ...row,
+        profiles: Array.isArray(row.profiles) ? row.profiles[0] ?? undefined : row.profiles,
+      } as Row;
+
+      setRows((prev) => {
+        const existingIdx = prev.findIndex((item) => item.id === id);
+        if (existingIdx >= 0) {
+          const next = [...prev];
+          next[existingIdx] = normalized;
+          return next;
+        }
+        return [normalized, ...prev];
+      });
+    };
+
+    const channel = supabase
+      .channel(`schedules:${employeeId ?? "all"}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "schedules",
+          filter: employeeId ? `employee_id=eq.${employeeId}` : undefined,
+        },
+        (payload) => {
+          const id = (payload.new as Row | null)?.id ?? (payload.old as Row | null)?.id;
+          if (!id) return;
+          void fetchRow(id);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [employeeId, realtime, statusFilter]);
+
   const getReviewStatus = (row: Row) => {
     const approvals = row.schedule_days ?? [];
     if (!approvals.length) return null;
@@ -93,5 +172,5 @@ export function ScheduleTable({
     },
   ];
 
-  return <DataTable columns={columns} data={data} />;
+  return <DataTable columns={columns} data={rows} />;
 }
