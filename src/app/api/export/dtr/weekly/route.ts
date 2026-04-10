@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 import { PDFDocument as LibPdfDocument, StandardFonts, rgb } from "pdf-lib";
 import PDFDocument from "pdfkit";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -22,6 +24,22 @@ const COLORS = {
   header: "#111827",
   white: "#FFFFFF",
 };
+
+const FONT_REGULAR_NAME = "NanumGothic-Regular";
+const FONT_BOLD_NAME = "NanumGothic-Bold";
+const FONT_REGULAR_PATH = path.join(process.cwd(), "public", "fonts", "NanumGothic-Regular.ttf");
+const FONT_BOLD_PATH = path.join(process.cwd(), "public", "fonts", "NanumGothic-Bold.ttf");
+
+function registerFonts(doc: PDFKit.PDFDocument) {
+  try {
+    const regularBytes = fs.readFileSync(FONT_REGULAR_PATH);
+    const boldBytes = fs.readFileSync(FONT_BOLD_PATH);
+    doc.registerFont(FONT_REGULAR_NAME, regularBytes);
+    doc.registerFont(FONT_BOLD_NAME, boldBytes);
+  } catch (error) {
+    console.error("Failed to register Nanum Gothic fonts, falling back to built-in Helvetica.", error);
+  }
+}
 
 type EntryRow = {
   id: string;
@@ -77,12 +95,12 @@ function drawMetric(
     .roundedRect(x, y, width, 70, 16)
     .fillAndStroke(COLORS.panel, COLORS.panelBorder);
   doc
-    .font("Helvetica-Bold")
+    .font(FONT_BOLD_NAME)
     .fontSize(8)
     .fillColor(COLORS.muted)
     .text(label, x + 16, y + 16, { width: width - 32 });
   doc
-    .font("Helvetica-Bold")
+    .font(FONT_BOLD_NAME)
     .fontSize(16)
     .fillColor(COLORS.ink)
     .text(value, x + 16, y + 34, { width: width - 32 });
@@ -96,8 +114,8 @@ function drawLabelValue(
   value: string,
   width: number,
 ) {
-  doc.font("Helvetica-Bold").fontSize(8).fillColor(COLORS.muted).text(label, x, y, { width });
-  doc.font("Helvetica").fontSize(12).fillColor(COLORS.ink).text(value, x, y + 14, { width });
+  doc.font(FONT_BOLD_NAME).fontSize(8).fillColor(COLORS.muted).text(label, x, y, { width });
+  doc.font(FONT_REGULAR_NAME).fontSize(12).fillColor(COLORS.ink).text(value, x, y + 14, { width });
 }
 
 function drawSummaryChip(
@@ -110,13 +128,13 @@ function drawSummaryChip(
 ) {
   doc.roundedRect(x, y, width, 42, 14).fillAndStroke(COLORS.white, COLORS.line);
   doc
-    .font("Helvetica-Bold")
+    .font(FONT_BOLD_NAME)
     .fontSize(7)
     .fillColor(COLORS.muted)
     .text(label, x + 14, y + 10, {
       width: width - 28,
     });
-  doc.font("Helvetica").fontSize(11).fillColor(COLORS.ink).text(value, x + 14, y + 22, {
+  doc.font(FONT_REGULAR_NAME).fontSize(11).fillColor(COLORS.ink).text(value, x + 14, y + 22, {
     width: width - 28,
   });
 }
@@ -125,7 +143,7 @@ function measureTextHeight(
   doc: PDFKit.PDFDocument,
   text: string,
   width: number,
-  font: "Helvetica" | "Helvetica-Bold",
+  font: string,
   fontSize: number,
   lineGap = 0,
 ) {
@@ -151,15 +169,15 @@ function drawOverflowPageHeader(
 ) {
   doc.addPage();
   doc.rect(0, 0, PAGE_WIDTH, 92).fill(COLORS.header);
-  doc.fillColor("white").font("Helvetica-Bold").fontSize(12).text("PH SEO Parttimer", PAGE_MARGIN, 24);
+  doc.fillColor("white").font(FONT_BOLD_NAME).fontSize(12).text("PH SEO Parttimer", PAGE_MARGIN, 24);
   doc.fontSize(16).text("Daily Time Record (continued)", PAGE_MARGIN, 42);
   doc
-    .font("Helvetica")
+    .font(FONT_REGULAR_NAME)
     .fontSize(9)
     .fillColor("#E2E8F0")
     .text(`DTR ID: ${entry.id}`, PAGE_MARGIN, 66, { width: 240 });
   doc
-    .font("Helvetica")
+    .font(FONT_REGULAR_NAME)
     .fontSize(9)
     .fillColor("#CBD5E1")
     .text(`${employeeName} - ${formatDate(entry.work_date)}`, PAGE_MARGIN + 240, 66, {
@@ -172,7 +190,7 @@ function wrapTextByWidth(
   doc: PDFKit.PDFDocument,
   text: string,
   width: number,
-  font: "Helvetica" | "Helvetica-Bold",
+  font: string,
   fontSize: number,
 ) {
   doc.font(font).fontSize(fontSize);
@@ -237,7 +255,7 @@ function drawPaginatedTextSection(params: {
       .roundedRect(PAGE_MARGIN, currentY, CONTENT_WIDTH, sectionHeight, 18)
       .fillAndStroke("white", COLORS.line);
     doc
-      .font("Helvetica-Bold")
+      .font(FONT_BOLD_NAME)
       .fontSize(11)
       .fillColor(COLORS.ink)
       .text(continuation ? `${title} (continued)` : title, PAGE_MARGIN + 20, currentY + 20);
@@ -245,7 +263,7 @@ function drawPaginatedTextSection(params: {
     let textY = currentY + 44;
     chunk.forEach((line) => {
       doc
-        .font("Helvetica")
+        .font(FONT_REGULAR_NAME)
         .fontSize(textFontSize)
         .fillColor(textColor)
         .text(line || " ", PAGE_MARGIN + 20, textY, {
@@ -270,7 +288,7 @@ function buildImageLinkLines(
   if (!parsed.length) {
     const fallback = imageLinksRaw?.trim() || "No image link attached.";
     return {
-      lines: wrapTextByWidth(doc, fallback, SECTION_INNER_WIDTH, "Helvetica", 10).map((text) => ({
+      lines: wrapTextByWidth(doc, fallback, SECTION_INNER_WIDTH, FONT_REGULAR_NAME, 10).map((text) => ({
         text: text || " ",
         color: COLORS.muted,
       })),
@@ -280,7 +298,7 @@ function buildImageLinkLines(
   const lines: ImageLinkLine[] = [];
   parsed.forEach((item, index) => {
     const lineText = `${index + 1}. ${item.title ? `${item.title}: ` : ""}${item.url}`;
-    const wrapped = wrapTextByWidth(doc, lineText, SECTION_INNER_WIDTH, "Helvetica", 9);
+    const wrapped = wrapTextByWidth(doc, lineText, SECTION_INNER_WIDTH, FONT_REGULAR_NAME, 9);
     wrapped.forEach((part) => {
       lines.push({
         text: part || " ",
@@ -325,7 +343,7 @@ function drawPaginatedImageLinksSection(params: {
       .roundedRect(PAGE_MARGIN, currentY, CONTENT_WIDTH, sectionHeight, 18)
       .fillAndStroke(COLORS.panel, COLORS.panelBorder);
     doc
-      .font("Helvetica-Bold")
+      .font(FONT_BOLD_NAME)
       .fontSize(11)
       .fillColor(COLORS.ink)
       .text(continuation ? "Image links (continued)" : "Image links", PAGE_MARGIN + 20, currentY + 20);
@@ -333,7 +351,7 @@ function drawPaginatedImageLinksSection(params: {
     let textY = currentY + 44;
     chunk.forEach((line) => {
       doc
-        .font("Helvetica")
+        .font(FONT_REGULAR_NAME)
         .fontSize(9)
         .fillColor(line.color)
         .text(line.text, PAGE_MARGIN + 20, textY, {
@@ -363,10 +381,10 @@ function renderDtrPage(
   }
 
   doc.rect(0, 0, PAGE_WIDTH, 108).fill(COLORS.header);
-  doc.fillColor("white").font("Helvetica-Bold").fontSize(12).text("PH SEO Parttimer", PAGE_MARGIN, 28);
+  doc.fillColor("white").font(FONT_BOLD_NAME).fontSize(12).text("PH SEO Parttimer", PAGE_MARGIN, 28);
   doc.fontSize(24).text("Daily Time Record", PAGE_MARGIN, 48);
   doc
-    .font("Helvetica")
+    .font(FONT_REGULAR_NAME)
     .fontSize(10)
     .fillColor("#E2E8F0")
     .text(`DTR ID: ${entry.id}`, PAGE_MARGIN, 82, { width: 280 });
@@ -375,7 +393,7 @@ function renderDtrPage(
     .roundedRect(PAGE_MARGIN, 126, 206, 32, 16)
     .fillAndStroke(COLORS.accentSoft, COLORS.accentSoft);
   doc
-    .font("Helvetica-Bold")
+    .font(FONT_BOLD_NAME)
     .fontSize(10)
     .fillColor(COLORS.accent)
     .text("Manager export - Internal use only", PAGE_MARGIN + 18, 138);
@@ -400,8 +418,8 @@ function renderDtrPage(
   const projectX = PAGE_MARGIN + 214;
   const summaryLabelY = workSummaryY + 50;
   const summaryValueY = summaryLabelY + 14;
-  const weekHeight = measureTextHeight(doc, weekRangeValue, weekWidth, "Helvetica", 12, 2);
-  const projectHeight = measureTextHeight(doc, projectAccountValue, projectWidth, "Helvetica", 12, 2);
+  const weekHeight = measureTextHeight(doc, weekRangeValue, weekWidth, FONT_REGULAR_NAME, 12, 2);
+  const projectHeight = measureTextHeight(doc, projectAccountValue, projectWidth, FONT_REGULAR_NAME, 12, 2);
   const summaryTextHeight = Math.max(weekHeight, projectHeight);
   const summaryChipsY = summaryValueY + summaryTextHeight + 18;
   const summaryHeight = summaryChipsY + 42 + 18 - workSummaryY;
@@ -410,7 +428,7 @@ function renderDtrPage(
     .roundedRect(PAGE_MARGIN, workSummaryY, CONTENT_WIDTH, summaryHeight, 18)
     .fillAndStroke(COLORS.panel, COLORS.panelBorder);
   doc
-    .font("Helvetica-Bold")
+    .font(FONT_BOLD_NAME)
     .fontSize(11)
     .fillColor(COLORS.ink)
     .text("Work summary", PAGE_MARGIN + 20, workSummaryY + 18);
@@ -429,7 +447,7 @@ function renderDtrPage(
 
   const notesY = workSummaryY + summaryHeight + 20;
   const notesText = entry.notes?.trim() || "No notes provided.";
-  const notesLines = wrapTextByWidth(doc, notesText, SECTION_INNER_WIDTH, "Helvetica", 10);
+  const notesLines = wrapTextByWidth(doc, notesText, SECTION_INNER_WIDTH, FONT_REGULAR_NAME, 10);
   let currentY = drawPaginatedTextSection({
     doc,
     title: "Notes",
@@ -509,6 +527,7 @@ export async function GET(req: NextRequest) {
     }
 
     const doc = new PDFDocument({ size: "A4", margin: 50 });
+    registerFonts(doc);
     const buffers: Buffer[] = [];
     doc.on("data", (chunk) => buffers.push(chunk));
 
