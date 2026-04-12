@@ -107,6 +107,16 @@ export function ScheduleWeekForm({
     form.setValue("days", newDays);
   }, [watchWeekStart, form, initialized, initialData?.days]);
 
+  // When the user switches to a different week, treat it as a fresh draft
+  useEffect(() => {
+    if (!initialized) return;
+    const isInitialWeek = watchWeekStart === initialWeekStartRef.current;
+    if (!isInitialWeek) {
+      setStatus("draft");
+      form.setValue("id", undefined);
+    }
+  }, [watchWeekStart, initialized, form]);
+
   const isManager = viewerRole === "manager";
   const reviewOnly = isManager && status === "submitted" && !reviewLocked;
   const readOnly = forceReadOnly || (status === "submitted" && !reviewOnly);
@@ -247,7 +257,7 @@ export function ScheduleWeekForm({
       ) : null}
 
       <div className="overflow-auto scroll-section">
-        <table className="w-full text-sm border border-border rounded-lg">
+        <table className="w-full min-w-[920px] text-sm border border-border rounded-lg">
           <thead className="bg-slate-50">
             <tr className="text-left">
               <th className="p-3 text-xs font-semibold text-slate-500">Day</th>
@@ -283,7 +293,7 @@ export function ScheduleWeekForm({
                     className="bg-slate-50"
                   />
                 </td>
-                <td className="p-3">
+                <td className="p-3 min-w-[140px]">
                   <Select
                     value={day.work_status}
                     disabled={readOnly || reviewOnly}
@@ -302,7 +312,7 @@ export function ScheduleWeekForm({
                     <option value="requested">Requested</option>
                   </Select>
                 </td>
-                <td className="p-3">
+                <td className="p-3 min-w-[120px]">
                   <Input
                     type="time"
                     value={day.start_time ?? ""}
@@ -315,7 +325,7 @@ export function ScheduleWeekForm({
                     }}
                   />
                 </td>
-                <td className="p-3">
+                <td className="p-3 min-w-[120px]">
                   <Input
                     type="time"
                     value={day.end_time ?? ""}
@@ -328,7 +338,7 @@ export function ScheduleWeekForm({
                     }}
                   />
                 </td>
-                <td className="p-3">
+                <td className="p-3 min-w-[140px]">
                   <Select
                     value={day.approval_status}
                     disabled={!reviewOnly}

@@ -6,14 +6,17 @@ import { Button } from "@/components/ui/button";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth/session";
 import { ScheduleTable } from "@/features/schedule/components/schedule-table";
+import { isMonday, isSunday } from "date-fns";
 
 export default async function ScheduleListPage({
   searchParams,
 }: {
-  searchParams: { status?: string };
+  searchParams: { status?: string; locked?: string };
 }) {
   const profile = await requireProfile();
   const supabase = await createServerSupabaseClient();
+  const now = new Date();
+  const creationWindowOpen = isSunday(now) || isMonday(now);
 
   let query = supabase
     .from("schedules")
@@ -44,7 +47,7 @@ export default async function ScheduleListPage({
         description="Plan your weekly schedule. Drafts are editable until submitted."
         userId={profile.id}
         actions={
-          profile.role === "employee" ? (
+          profile.role === "employee" && creationWindowOpen ? (
             <Button asChild>
               <Link href="/schedule/new">
                 <CalendarPlus className="h-4 w-4" />
@@ -54,6 +57,11 @@ export default async function ScheduleListPage({
           ) : null
         }
       />
+      {profile.role === "employee" && !creationWindowOpen ? (
+        <p className="text-sm text-slate-500">
+          New schedules can be created on Sunday and Monday only.
+        </p>
+      ) : null}
 
       <div className="flex items-center gap-3 text-sm">
         <span className="text-slate-500">Filter:</span>

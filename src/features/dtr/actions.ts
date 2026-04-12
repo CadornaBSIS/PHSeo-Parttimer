@@ -12,6 +12,7 @@ export type DtrActionResponse = {
   error?: string;
   success?: string;
   id?: string;
+  field?: string;
 };
 
 async function notifyManagers(params: {
@@ -56,6 +57,21 @@ export async function saveDtrAction(
     return { error: "Validation failed" };
   }
   const data = parsed.data;
+
+  // Ensure a schedule exists for this week before allowing DTR creation
+  const { data: scheduleForWeek } = await supabase
+    .from("schedules")
+    .select("id, status")
+    .eq("employee_id", session.user.id)
+    .eq("week_start", data.week_start)
+    .maybeSingle();
+
+  if (!scheduleForWeek) {
+    return {
+      error: "Schedule required for that week.",
+    };
+  }
+
   const { data: employeeProfile } = await supabase
     .from("profiles")
     .select("full_name")
@@ -74,8 +90,9 @@ export async function saveDtrAction(
   const { data: conflicting } = await existingDateQuery.maybeSingle();
   if (conflicting) {
     return {
-      error: `You already have a DTR for ${data.work_date}. Open that entry instead of creating a new one.`,
+      error: `Duplicate DTR blocked: an entry already exists for ${data.work_date}. Open the existing record instead of creating another.`,
       id: conflicting.id,
+      field: "work_date",
     };
   }
 

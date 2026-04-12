@@ -25,10 +25,7 @@ export const dtrFormSchema = z
         } catch (error) {
           ctx.addIssue({
             code: "custom",
-            message:
-              error instanceof Error
-                ? `Invalid image links format: ${error.message}`
-                : "Invalid image links format",
+            message: "Image links must follow: Title: https://example.com (one per line).",
           });
         }
       }),

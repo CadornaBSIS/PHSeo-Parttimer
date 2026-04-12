@@ -17,12 +17,12 @@ function normalizeUrl(rawUrl: string) {
 function parseLine(line: string): ParsedImageLink {
   const trimmed = line.trim();
   if (!trimmed) {
-    throw new Error("Empty line.");
+    throw new Error("Use format: Title: https://example.com (one per line).");
   }
 
   const urlMatch = trimmed.match(/https?:\/\/\S+/i);
   if (!urlMatch) {
-    throw new Error("Missing URL.");
+    throw new Error("Use format: Title: https://example.com (URL required).");
   }
 
   const rawUrl = urlMatch[0];

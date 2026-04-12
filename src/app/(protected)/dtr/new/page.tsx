@@ -18,6 +18,20 @@ export default async function NewDtrPage() {
     .select("id, name")
     .eq("is_active", true);
 
+  const { data: scheduleWeeks } = await supabase
+    .from("schedules")
+    .select("week_start, week_end")
+    .eq("employee_id", profile.id)
+    .order("week_start", { ascending: false })
+    .limit(24);
+
+  const allowedWeeks =
+    scheduleWeeks?.map((item) => ({ start: item.week_start, end: item.week_end })) ?? [];
+
+  if (!allowedWeeks.length) {
+    redirect("/dtr?locked=no-schedule");
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -26,7 +40,7 @@ export default async function NewDtrPage() {
         userId={profile.id}
       />
       <div className="card">
-        <DtrForm projects={projects ?? []} />
+        <DtrForm projects={projects ?? []} allowedWeeks={allowedWeeks} />
       </div>
     </div>
   );

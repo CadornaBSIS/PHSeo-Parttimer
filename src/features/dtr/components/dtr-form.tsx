@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { saveDtrAction } from "../actions";
 import { parseImageLinks } from "../image-links";
-import { calculateDurationMinutes, formatMinutes, ensureMonday } from "@/utils/date";
+import { calculateDurationMinutes, formatMinutes, ensureMonday, isWithinWeek } from "@/utils/date";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ type Props = {
   initialData?: Partial<DtrFormValues> & { status?: "draft" | "submitted" };
   readOnly?: boolean;
   hideActions?: boolean;
+  allowedWeeks?: { start: string; end: string }[];
 };
 
 const fallbackProjects = [
@@ -48,11 +49,16 @@ export function DtrForm({
   initialData,
   readOnly: forceReadOnly,
   hideActions = false,
+  allowedWeeks,
 }: Props) {
   const router = useRouter();
   const projectOptions = projects.length ? projects : fallbackProjects;
-  const baseDate = initialData?.work_date ?? format(new Date(), "yyyy-MM-dd");
-  const monday = format(ensureMonday(parseISO(baseDate)), "yyyy-MM-dd");
+  const nowStr = format(new Date(), "yyyy-MM-dd");
+  const fallbackWeek =
+    allowedWeeks?.find((w) => isWithinWeek(nowStr, w.start, w.end)) ??
+    allowedWeeks?.[0];
+  const baseDate = initialData?.work_date ?? fallbackWeek?.start ?? nowStr;
+  const mondayFromBase = format(ensureMonday(parseISO(baseDate)), "yyyy-MM-dd");
   const [status, setStatus] = useState(initialData?.status ?? "draft");
   const [submitting, setSubmitting] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -75,10 +81,10 @@ export function DtrForm({
     resolver: zodResolver(dtrFormSchema),
     defaultValues: {
       id: initialData?.id,
-      week_start: initialData?.week_start ?? monday,
+      week_start: initialData?.week_start ?? (fallbackWeek?.start ?? mondayFromBase),
       week_end:
         initialData?.week_end ??
-        format(addDays(parseISO(monday), 6), "yyyy-MM-dd"),
+        (fallbackWeek?.end ?? format(addDays(parseISO(mondayFromBase), 6), "yyyy-MM-dd")),
       work_date: baseDate,
       start_time: initialData?.start_time ?? "09:00",
       end_time: initialData?.end_time ?? "18:00",
@@ -146,11 +152,14 @@ export function DtrForm({
 
   useEffect(() => {
     if (!workDateWatch) return;
-    const weekStart = format(ensureMonday(parseISO(workDateWatch)), "yyyy-MM-dd");
-    const weekEnd = format(addDays(parseISO(weekStart), 6), "yyyy-MM-dd");
+    const matchedWeek = allowedWeeks?.find((w) => isWithinWeek(workDateWatch, w.start, w.end));
+    const weekStart =
+      matchedWeek?.start ?? format(ensureMonday(parseISO(workDateWatch)), "yyyy-MM-dd");
+    const weekEnd =
+      matchedWeek?.end ?? format(addDays(parseISO(weekStart), 6), "yyyy-MM-dd");
     form.setValue("week_start", weekStart);
     form.setValue("week_end", weekEnd);
-  }, [workDateWatch, form]);
+  }, [workDateWatch, form, allowedWeeks]);
 
   useEffect(() => {
     const selectedNames = selectedProjects
@@ -174,12 +183,27 @@ export function DtrForm({
     try {
       const valid = await form.trigger();
       if (!valid) {
-        toast.error("Fix validation errors.");
+        const firstError =
+          Object.values(form.formState.errors)[0]?.message ??
+          "Fix validation errors.";
+        toast.error(firstError as string);
         return;
       }
       const values = form.getValues();
       const result = await saveDtrAction(values, submit);
       if (result.error) {
+        // Surface server-side errors on the work date to make conflicts obvious
+        if (result.field === "work_date" || result.error.toLowerCase().includes("duplicate dtr")) {
+          form.setError("work_date", {
+            type: "server",
+            message: result.error,
+          });
+        } else {
+          form.setError("root.serverError", {
+            type: "server",
+            message: result.error,
+          });
+        }
         toast.error(result.error);
         return;
       }
@@ -265,6 +289,13 @@ export function DtrForm({
                         size="sm"
                         onClick={() => {
                           if (!tempDate) return;
+                          const allowed =
+                            !allowedWeeks ||
+                            allowedWeeks.some((w) => isWithinWeek(tempDate, w.start, w.end));
+                          if (!allowed) {
+                            toast.error("Schedule required for that week.");
+                            return;
+                          }
                           form.setValue("work_date", tempDate);
                           setDatePickerOpen(false);
                         }}
@@ -432,7 +463,7 @@ export function DtrForm({
               </div>
             ) : (
               <Textarea
-                placeholder={"Screenshot 1: https://...\nScreenshot 2: https://..."}
+                placeholder={"Title: https://example.com/image.png"}
                 disabled={readOnly}
                 className="rounded-2xl bg-white/90"
                 rows={4}
@@ -440,7 +471,7 @@ export function DtrForm({
               />
             )}
             <p className="text-xs text-slate-500">
-              Format each line as <span className="font-medium">Title: https://...</span> or just the URL.
+              Format each line as <span className="font-medium">Title: https://...</span> (one per line).
             </p>
           </div>
 

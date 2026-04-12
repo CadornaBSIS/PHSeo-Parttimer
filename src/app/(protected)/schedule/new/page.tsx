@@ -4,7 +4,7 @@ import { ScheduleWeekForm } from "@/features/schedule/components/schedule-week-f
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth/session";
 import { ensureMonday, computeWeekEnd } from "@/utils/date";
-import { format, addDays } from "date-fns";
+import { format, addDays, isSunday, isMonday } from "date-fns";
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
@@ -13,16 +13,40 @@ export const runtime = "nodejs";
 export default async function NewSchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ week?: string }>;
+  searchParams?: { week?: string };
 }) {
   const profile = await requireProfile();
   if (profile.role !== "employee") redirect("/schedule");
 
   const supabase = await createServerSupabaseClient();
-  const todayMonday = ensureMonday(new Date());
-  const resolvedSearchParams = await searchParams;
-  const weekParam = (resolvedSearchParams?.week ?? "").toLowerCase();
-  const monday = weekParam === "next" ? addDays(todayMonday, 7) : todayMonday;
+
+  const now = new Date();
+  const canCreate = isSunday(now) || isMonday(now);
+  if (!canCreate) {
+    redirect("/schedule?locked=create-window");
+  }
+
+  const todayMonday = ensureMonday(now);
+  const nextMonday = addDays(todayMonday, 7);
+  const weekParam = (searchParams?.week ?? "").toLowerCase();
+
+  // Check if there is an existing schedule for the current week
+  const { data: currentWeek } = await supabase
+    .from("schedules")
+    .select("id, week_start, week_end, status, schedule_days(*)")
+    .eq("employee_id", profile.id)
+    .eq("week_start", format(todayMonday, "yyyy-MM-dd"))
+    .maybeSingle();
+
+  // Default to next week when:
+  // - user explicitly requests ?week=next
+  // - today is Sunday (let employees plan ahead)
+  // - current week's schedule is already submitted
+  const monday =
+    weekParam === "next" || isSunday(now) || currentWeek?.status === "submitted"
+      ? nextMonday
+      : todayMonday;
+
   const weekStart = format(monday, "yyyy-MM-dd");
   const weekEnd = format(computeWeekEnd(monday), "yyyy-MM-dd");
 

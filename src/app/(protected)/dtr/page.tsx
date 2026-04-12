@@ -10,10 +10,20 @@ import { DtrTable } from "@/features/dtr/components/dtr-table";
 export default async function DtrListPage({
   searchParams,
 }: {
-  searchParams: { status?: string };
+  searchParams: { status?: string; locked?: string };
 }) {
   const profile = await requireProfile();
   const supabase = await createServerSupabaseClient();
+  let canCreate = true;
+
+  if (profile.role === "employee") {
+    const { data: scheduleExists } = await supabase
+      .from("schedules")
+      .select("id")
+      .eq("employee_id", profile.id)
+      .limit(1);
+    canCreate = Boolean(scheduleExists?.length);
+  }
 
   let query = supabase
     .from("dtr_entries")
@@ -44,7 +54,7 @@ export default async function DtrListPage({
         description="Actual work logs. Drafts are editable until submitted."
         userId={profile.id}
         actions={
-          profile.role === "employee" ? (
+          profile.role === "employee" && canCreate ? (
             <Button asChild>
               <Link href="/dtr/new">
                 <Plus className="h-4 w-4" />
@@ -54,6 +64,16 @@ export default async function DtrListPage({
           ) : null
         }
       />
+      {profile.role === "employee" && !canCreate ? (
+        <p className="text-sm text-slate-500">
+          Create a schedule first before logging DTR entries.
+        </p>
+      ) : null}
+      {profile.role === "employee" && searchParams.locked === "no-schedule" ? (
+        <p className="text-sm text-amber-600">
+          No schedule found for that week. Please add your schedule, then create a DTR.
+        </p>
+      ) : null}
 
       <div className="flex items-center gap-3 text-sm">
         <span className="text-slate-500">Filter:</span>
