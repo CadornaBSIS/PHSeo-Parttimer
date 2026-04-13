@@ -127,7 +127,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
           <CardTitle>Weekly summary</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="hidden sm:block overflow-x-auto">
+          <div className="hidden sm:block w-full max-w-full overflow-x-auto">
             <Table className="min-w-[720px]">
               <TableHeader>
                 <TableRow>
@@ -250,7 +250,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
             <CardTitle>Recent schedules</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="hidden sm:block overflow-x-auto">
+            <div className="hidden sm:block w-full max-w-full overflow-x-auto">
               <Table className="min-w-[640px]">
                 <TableHeader>
                   <TableRow>
@@ -338,7 +338,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
             <CardTitle>Recent DTR</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="hidden sm:block overflow-x-auto">
+            <div className="hidden sm:block w-full max-w-full overflow-x-auto">
               <Table className="min-w-[560px]">
                 <TableHeader>
                   <TableRow>

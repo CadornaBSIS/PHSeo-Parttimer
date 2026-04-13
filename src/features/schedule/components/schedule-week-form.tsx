@@ -191,6 +191,17 @@ export function ScheduleWeekForm({
   const showReviewResultOptions =
     viewerRole === "manager" || (viewerRole === "employee" && status === "submitted");
 
+  const batchUpdateApproval = useCallback(
+    (value: WeekDay["approval_status"]) => {
+      const updated = form.getValues("days").map((day) => ({
+        ...day,
+        approval_status: value,
+      }));
+      form.setValue("days", updated);
+    },
+    [form],
+  );
+
   // Live status/days updates when another user reviews this schedule
   useEffect(() => {
     if (!scheduleId) return;
@@ -254,6 +265,38 @@ export function ScheduleWeekForm({
           }}
           onChange={handleRangeChange}
         />
+      ) : null}
+
+      {reviewOnly ? (
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={reviewLocked}
+            onClick={() => batchUpdateApproval("approved")}
+          >
+            Approve all days
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={reviewLocked}
+            onClick={() => batchUpdateApproval("not_approved")}
+          >
+            Not approve all
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={reviewLocked}
+            onClick={() => batchUpdateApproval("for_approval")}
+          >
+            Reset to pending
+          </Button>
+        </div>
       ) : null}
 
       <div className="overflow-auto scroll-section">

@@ -68,7 +68,7 @@ const navItems = [
   },
 ];
 
-export function AppSidebar({ profile, role, open }: SidebarProps) {
+export function AppSidebar({ profile, role, open, onClose }: SidebarProps) {
   const [pending, startTransition] = useTransition();
   const pathname = usePathname();
   const router = useRouter();
@@ -132,6 +132,10 @@ export function AppSidebar({ profile, role, open }: SidebarProps) {
                 key={item.href}
                 href={item.href}
                 prefetch
+                onClick={() => {
+                  // Close the mobile drawer immediately after navigation tap.
+                  onClose?.();
+                }}
                 className={cn(
                   "sidebar-link",
                   active && "sidebar-link-active text-white",

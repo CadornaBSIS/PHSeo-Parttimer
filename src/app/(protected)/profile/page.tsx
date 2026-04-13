@@ -86,7 +86,7 @@ export default async function ProfilePage() {
   const roleLabel = isManager ? "Manager" : "Employee";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 md:space-y-8 max-w-6xl mx-auto px-3 sm:px-4 w-full overflow-x-hidden">
       <PageHeader
         title="My Profile"
         description={
@@ -97,11 +97,11 @@ export default async function ProfilePage() {
         userId={profile.id}
       />
 
-      <Card className="overflow-hidden border-slate-200">
-        <CardContent className="bg-gradient-to-r from-white via-slate-50 to-blue-50 p-6">
+      <Card className="overflow-hidden border-slate-200 shadow-md">
+        <CardContent className="bg-gradient-to-r from-white via-slate-50 to-blue-50 p-5 sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-lg font-bold text-white">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-lg font-bold text-white shadow-sm">
                 {initials}
               </div>
               <div className="space-y-2">
@@ -111,15 +111,21 @@ export default async function ProfilePage() {
                 <h2 className="text-2xl font-semibold text-slate-950">
                   {profile.full_name}
                 </h2>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary">{roleLabel}</Badge>
-                  <StatusBadge status={profile.status ?? "inactive"} />
+                <div className="flex flex-nowrap items-center gap-1 text-[10px] leading-tight">
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-slate-900 px-2 py-[6px] font-semibold text-white shadow-sm">
+                    <UserRound className="h-3 w-3 text-white/80" />
+                    <span className="capitalize">{roleLabel}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-100 px-2 py-[6px] font-semibold text-emerald-800 border border-emerald-200 shadow-sm capitalize">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    {(profile.status ?? "inactive").replace(/_/g, " ")}
+                  </span>
                 </div>
               </div>
             </div>
 
             <div className="grid gap-3 text-sm sm:grid-cols-2">
-              <div className="rounded-xl border border-slate-200 bg-white/90 px-4 py-3">
+              <div className="rounded-xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
                 <p className="text-xs uppercase tracking-wide text-slate-500">
                   Department
                 </p>
@@ -127,7 +133,7 @@ export default async function ProfilePage() {
                   {profile.department ?? "Not set"}
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white/90 px-4 py-3">
+              <div className="rounded-xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
                 <p className="text-xs uppercase tracking-wide text-slate-500">
                   Employee Code
                 </p>
@@ -140,9 +146,9 @@ export default async function ProfilePage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="space-y-2 p-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="shadow-sm">
+          <CardContent className="space-y-2 p-4 sm:p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Unread Notifications
             </p>
@@ -156,8 +162,8 @@ export default async function ProfilePage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="space-y-2 p-5">
+        <Card className="shadow-sm">
+          <CardContent className="space-y-2 p-4 sm:p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Schedules Submitted
             </p>
@@ -171,8 +177,8 @@ export default async function ProfilePage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="space-y-2 p-5">
+        <Card className="shadow-sm">
+          <CardContent className="space-y-2 p-4 sm:p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               DTR Submitted
             </p>
@@ -186,8 +192,8 @@ export default async function ProfilePage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="space-y-2 p-5">
+        <Card className="shadow-sm">
+          <CardContent className="space-y-2 p-4 sm:p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {isManager ? "Active Team Members" : "Profile Role"}
             </p>
@@ -212,7 +218,7 @@ export default async function ProfilePage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserRound className="h-5 w-5 text-accent" />
@@ -249,7 +255,7 @@ export default async function ProfilePage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>{isManager ? "Manager Snapshot" : "Employee Snapshot"}</CardTitle>
             <CardDescription>
@@ -337,7 +343,7 @@ function InfoItem({
   valueClassName?: string;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-white p-3">
+    <div className="rounded-lg border border-border bg-white p-3 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </p>

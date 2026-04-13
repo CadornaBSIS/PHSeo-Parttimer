@@ -45,7 +45,7 @@ export default async function EmployeesPage() {
       </Card>
 
       <div className="card space-y-4 p-4 sm:p-6">
-        <div className="hidden sm:block overflow-x-auto">
+        <div className="w-full max-w-full overflow-x-auto overscroll-x-contain">
           <Table className="min-w-[720px]">
             <TableHeader>
               <TableRow>
@@ -89,47 +89,6 @@ export default async function EmployeesPage() {
               ) : null}
             </TableBody>
           </Table>
-        </div>
-
-        <div className="grid gap-3 sm:hidden">
-          {(data ?? []).map((emp) => (
-            <div
-              key={emp.id}
-              className="rounded-xl border border-border bg-card p-4 shadow-card space-y-3"
-            >
-              <div>
-                <div className="font-semibold text-slate-900">{emp.full_name}</div>
-                <div className="text-xs text-slate-500">{emp.email}</div>
-              </div>
-              <div className="flex items-center justify-between text-sm text-slate-600">
-                <span>Department</span>
-                <span className="font-medium text-slate-900">
-                  {emp.department ?? "--"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-slate-600 capitalize">
-                <span>Role</span>
-                <span className="font-medium text-slate-900">{emp.role}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-slate-600">
-                <span>Status</span>
-                <StatusBadge status={(emp.status as string) ?? "inactive"} />
-              </div>
-              <div className="flex justify-end">
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href={`/employees/${emp.id}`} prefetch={false}>
-                    <Eye className="h-4 w-4" />
-                    View
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          ))}
-          {!data?.length ? (
-            <div className="rounded-xl border border-border bg-card p-4 text-sm text-slate-500">
-              No employees found.
-            </div>
-          ) : null}
         </div>
       </div>
     </div>

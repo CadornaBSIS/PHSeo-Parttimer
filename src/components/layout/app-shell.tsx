@@ -14,14 +14,19 @@ export function AppShell({ profile, children }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <AppSidebar profile={profile} role={profile.role} open={sidebarOpen} />
-      <div className="min-h-screen flex flex-col md:pl-64">
+    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+      <AppSidebar
+        profile={profile}
+        role={profile.role}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+      <div className="min-h-screen flex flex-col md:pl-64 overflow-x-hidden">
         <AppHeader
           profile={profile}
           onMenuClick={() => setSidebarOpen((prev) => !prev)}
         />
-        <main className="flex-1 px-4 pb-8 pt-3 sm:px-6 sm:pb-10 sm:pt-4">
+        <main className="flex-1 overflow-x-hidden px-4 pb-8 pt-3 sm:px-6 sm:pb-10 sm:pt-4">
           {children}
         </main>
       </div>

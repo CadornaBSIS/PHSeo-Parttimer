@@ -254,7 +254,7 @@ export function ReportsDashboard({
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[1.55fr_0.95fr]">
+      <div className="grid w-full max-w-full gap-6 xl:grid-cols-[1.55fr_0.95fr]">
         <Card className="overflow-hidden border-slate-200 bg-white text-slate-900 shadow-[0_18px_44px_rgba(15,23,42,0.08)]">
           <SectionHeader
             eyebrow="Trend Overview"
@@ -271,7 +271,7 @@ export function ReportsDashboard({
                     <p className="text-xs text-slate-500">Compare schedule submissions against logged DTR entries.</p>
                   </div>
                 </div>
-                <div className="h-80">
+                <div className="h-80 min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={trendData}>
                     <defs>
@@ -378,7 +378,7 @@ export function ReportsDashboard({
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr] xl:items-start">
+      <div className="grid w-full max-w-full gap-6 xl:grid-cols-[1.15fr_0.85fr] xl:items-start">
         <Card className="overflow-hidden border-slate-200 bg-white text-slate-900 shadow-[0_18px_44px_rgba(15,23,42,0.08)]">
           <SectionHeader
             eyebrow="Team Output"
@@ -508,7 +508,7 @@ export function ReportsDashboard({
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+      <div className="grid w-full max-w-full gap-6 xl:grid-cols-[0.8fr_1.2fr]">
         <Card className="overflow-hidden border-slate-200 bg-white text-slate-900 shadow-[0_18px_44px_rgba(15,23,42,0.08)]">
           <SectionHeader
             eyebrow="Quick Summary"

@@ -68,13 +68,13 @@ export default async function DashboardPage() {
     ]);
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 w-full max-w-full overflow-x-hidden">
         <PageHeader
           title="Manager Dashboard"
           description="Monitor schedules, DTR submissions, and team activity."
           userId={profile.id}
         />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid w-full max-w-full gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             label="Employees"
             value={employeeCount ?? 0}
@@ -97,7 +97,7 @@ export default async function DashboardPage() {
           />
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid w-full max-w-full gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -281,10 +281,10 @@ export default async function DashboardPage() {
     0,
   );
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="My Dashboard"
+    return (
+      <div className="space-y-6 w-full max-w-full overflow-x-hidden">
+        <PageHeader
+          title="My Dashboard"
         description={`Week of ${formatWeekRange(weekStartStr)}`}
         userId={profile.id}
       />
@@ -343,7 +343,7 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid w-full max-w-full gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Schedules submitted"
           value={mySubmittedSchedules ?? 0}
@@ -370,7 +370,7 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid w-full max-w-full gap-4 lg:grid-cols-2">
         <Card className="border-slate-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

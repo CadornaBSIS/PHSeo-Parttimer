@@ -59,43 +59,50 @@ export default async function SettingsPage() {
   const lastNotificationAt = latestNotificationRows?.[0]?.created_at;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 md:space-y-8 max-w-6xl mx-auto px-3 sm:px-4 w-full overflow-x-hidden">
       <PageHeader
         title="Security & Settings"
         description="Manage authentication, access, and account protection."
         userId={profile.id}
       />
 
-      <Card className="overflow-hidden border-slate-200">
-        <CardContent className="bg-gradient-to-r from-white via-slate-50 to-blue-50 p-6">
+      <Card className="overflow-hidden border-slate-200 shadow-md">
+        <CardContent className="bg-gradient-to-r from-white via-slate-50 to-blue-50 p-5 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                 Security Posture
               </p>
               <h2 className="text-2xl font-semibold text-slate-950">{profile.full_name}</h2>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary" className="capitalize">
-                  {profile.role}
-                </Badge>
-                <StatusBadge status={profile.status ?? "inactive"} />
-                <Badge variant="outline">Supabase Auth Protected</Badge>
+              <div className="flex flex-nowrap items-center gap-1 text-[10px] leading-tight">
+                <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-slate-900 px-2 py-[6px] font-semibold text-white shadow-sm">
+                  <UserCog className="h-3 w-3 text-white/80" />
+                  <span className="capitalize">{profile.role}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-100 px-2 py-[6px] font-semibold text-emerald-800 border border-emerald-200 shadow-sm capitalize">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  {(profile.status ?? "inactive").replace(/_/g, " ")}
+                </span>
+                <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-white px-2 py-[6px] font-semibold text-slate-800 border border-slate-200 shadow-sm">
+                  <ShieldCheck className="h-3 w-3 text-indigo-600" />
+                  SB Auth
+                </span>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" asChild>
-                <Link href="/profile">Account Profile</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/forgot-password">Reset Password</Link>
-              </Button>
-            </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <Button variant="outline" asChild className="w-full sm:w-auto">
+                  <Link href="/profile">Account Profile</Link>
+                </Button>
+              <Button asChild className="w-full sm:w-auto">
+                  <Link href="/forgot-password">Reset Password</Link>
+                </Button>
+              </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SecurityStat
           label="Account Status"
           value={profile.status}
@@ -125,7 +132,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Lock className="h-5 w-5 text-accent" />
@@ -163,7 +170,7 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-accent" />
@@ -204,7 +211,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>Security Notifications</CardTitle>
             <CardDescription>
@@ -229,7 +236,7 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>{isManager ? "Manager Security Controls" : "Personal Security Checklist"}</CardTitle>
             <CardDescription>
@@ -295,8 +302,8 @@ function SecurityStat({
   valueClassName?: string;
 }) {
   return (
-    <Card>
-      <CardContent className="space-y-2 p-5">
+    <Card className="shadow-sm">
+      <CardContent className="space-y-2 p-4 sm:p-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
         <p className={`text-2xl font-semibold text-slate-900 ${valueClassName ?? ""}`}>{value}</p>
         <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -347,7 +354,7 @@ function ActionTile({
   return (
     <Link
       href={href}
-      className="rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-slate-300 hover:bg-slate-50"
+      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
     >
       <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
         {icon}
@@ -366,7 +373,7 @@ function ChecklistTile({
   description: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
         <CheckCircle2 className="h-4 w-4 text-emerald-600" />
         {title}
