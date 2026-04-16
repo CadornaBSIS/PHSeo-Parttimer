@@ -95,7 +95,9 @@ export default async function SettingsPage() {
                   <Link href="/profile">Account Profile</Link>
                 </Button>
               <Button asChild className="w-full sm:w-auto">
-                  <Link href="/forgot-password">Reset Password</Link>
+                  <Link href="/settings/password">
+                    {isManager ? "Reset Password" : "Password Help"}
+                  </Link>
                 </Button>
               </div>
           </div>
@@ -155,13 +157,19 @@ export default async function SettingsPage() {
               icon={<Mail className="h-4 w-4" />}
             />
             <PanelLine
-              title="Password Recovery"
-              detail="Enabled"
-              sub="You can request reset from the forgot-password page"
+              title={isManager ? "Password Recovery" : "Password Help"}
+              detail={isManager ? "Enabled" : "Manager-controlled"}
+              sub={
+                isManager
+                  ? "Change your password or reset employee passwords"
+                  : "Employees must request password resets from a manager"
+              }
             />
             <div className="flex gap-2 pt-1">
               <Button size="sm" asChild>
-                <Link href="/forgot-password">Send Reset Link</Link>
+                <Link href="/settings/password">
+                  {isManager ? "Open Password Page" : "View Instructions"}
+                </Link>
               </Button>
               <Button variant="outline" size="sm" asChild>
                 <Link href="/login">Go To Login</Link>
@@ -278,7 +286,7 @@ export default async function SettingsPage() {
                 <ChecklistTile title="Use a strong password" description="At least 8 chars with mixed character types" />
                 <ChecklistTile title="Review alerts regularly" description="Open notifications and review account updates" />
                 <ChecklistTile title="Keep profile details current" description="Ensure your account email is accurate" />
-                <ChecklistTile title="Reset immediately if suspicious" description="Use forgot-password when you suspect compromise" />
+                <ChecklistTile title="Reset immediately if suspicious" description="Use the password page when you suspect compromise" />
               </>
             )}
           </CardContent>

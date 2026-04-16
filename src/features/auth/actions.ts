@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { createServiceSupabaseClient } from "@/lib/supabase/server";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -63,6 +64,19 @@ export async function sendResetPassword(
 ): Promise<ActionState> {
   const email = String(formData.get("email") ?? "").trim();
   if (!email) return { error: "Email is required." };
+
+  // Employees should request password resets through a manager.
+  // We intentionally "succeed" with a message to avoid leaking account existence.
+  const service = await createServiceSupabaseClient();
+  const { data: profile } = await service
+    .from("profiles")
+    .select("role")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (profile?.role === "employee") {
+    return { success: "Please contact your manager to reset your password." };
+  }
 
   const supabase = await createActionClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
