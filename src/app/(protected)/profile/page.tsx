@@ -86,7 +86,7 @@ export default async function ProfilePage() {
   const roleLabel = isManager ? "Manager" : "Employee";
 
   return (
-    <div className="space-y-6 md:space-y-8 max-w-6xl mx-auto px-3 sm:px-4 w-full overflow-x-hidden">
+    <div className="space-y-6 md:space-y-8 w-full overflow-x-hidden">
       <PageHeader
         title="My Profile"
         description={

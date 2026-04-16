@@ -59,7 +59,7 @@ export default async function SettingsPage() {
   const lastNotificationAt = latestNotificationRows?.[0]?.created_at;
 
   return (
-    <div className="space-y-6 md:space-y-8 max-w-6xl mx-auto px-3 sm:px-4 w-full overflow-x-hidden">
+    <div className="space-y-6 md:space-y-8 w-full overflow-x-hidden">
       <PageHeader
         title="Security & Settings"
         description="Manage authentication, access, and account protection."

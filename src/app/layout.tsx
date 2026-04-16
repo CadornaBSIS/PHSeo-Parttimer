@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "timepicker-ui/main.css";
 import { AppProviders } from "@/components/providers/app-providers";
 
 export const metadata: Metadata = {
