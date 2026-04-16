@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, addDays, parseISO } from "date-fns";
-import { Loader2, Plus, Save, Send, X } from "lucide-react";
+import { Loader2, Pencil, Plus, Save, Send, Trash2, X } from "lucide-react";
 import { dtrFormSchema, DtrFormValues } from "../schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,8 +108,111 @@ export function DtrForm({
       .map((block) => block.trim())
       .filter(Boolean);
 
+  // Link fields can include a human title + a URL, e.g. "My Title: https://example.com/page".
+  // We validate the first https:// URL we can find inside the field.
+  const extractHttpsUrl = (value: string) => {
+    const match = value.match(/https:\/\/\S+/i);
+    if (!match) return null;
+
+    // Strip common trailing punctuation users might type after pasting a URL.
+    return match[0].replace(/[),.;]+$/, "");
+  };
+
+  const isValidHttpsUrlWithDomain = (urlStr: string) => {
+    try {
+      const url = new URL(urlStr);
+      if (url.protocol !== "https:") return false;
+      // Require a real-looking domain (contains a dot + tld).
+      const host = url.hostname;
+      if (!host.includes(".")) return false;
+      const tld = host.split(".").pop();
+      if (!tld || tld.length < 2) return false;
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const isValidLinkField = (value: string) => {
+    const httpsUrl = extractHttpsUrl(value.trim());
+    if (!httpsUrl) return false;
+    return isValidHttpsUrlWithDomain(httpsUrl);
+  };
+
   const [tasks, setTasks] = useState<string[]>(() => parseTasks(initialData?.notes));
-  const [taskDraft, setTaskDraft] = useState("");
+  const [taskEditorOpen, setTaskEditorOpen] = useState(false);
+  const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
+  const [taskAttemptedSubmit, setTaskAttemptedSubmit] = useState(false);
+  const [taskSection, setTaskSection] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskTitleLinks, setTaskTitleLinks] = useState<string[]>([""]);
+  const [taskImageLinks, setTaskImageLinks] = useState<string[]>([""]);
+  const taskSectionRef = useRef<HTMLInputElement | null>(null);
+  const titleLinkRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const imageLinkRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  const resetTaskEditor = () => {
+    setTaskAttemptedSubmit(false);
+    setTaskSection("");
+    setTaskDescription("");
+    setTaskTitleLinks([""]);
+    setTaskImageLinks([""]);
+    setEditingTaskIndex(null);
+  };
+
+  const parseTaskBlock = (block: string) => {
+    const lines = String(block ?? "")
+      .split("\n")
+      .map((l) => l.trimEnd());
+
+    const findLineIndex = (exact: string) =>
+      lines.findIndex((line) => line.trim().toLowerCase() === exact.toLowerCase());
+
+    const sectionLine = lines.find((l) => l.trimStart().toLowerCase().startsWith("section:"));
+    const section = sectionLine ? sectionLine.split(":").slice(1).join(":").trim() : "";
+
+    const descIndex = findLineIndex("Description:");
+    const titleIndex = findLineIndex("Title: Link");
+    const imageIndex = findLineIndex("Title: Image Link");
+
+    const description =
+      descIndex !== -1 && titleIndex !== -1 && titleIndex > descIndex
+        ? lines.slice(descIndex + 1, titleIndex).join("\n").trim()
+        : "";
+
+    const titleLinks =
+      titleIndex !== -1
+        ? lines
+            .slice(titleIndex + 1, imageIndex !== -1 ? imageIndex : undefined)
+            .map((l) => l.trim())
+            .filter(Boolean)
+        : [];
+
+    const imageLinks =
+      imageIndex !== -1
+        ? lines
+            .slice(imageIndex + 1)
+            .map((l) => l.trim())
+            .filter(Boolean)
+        : [];
+
+    return {
+      section,
+      description,
+      titleLinks: titleLinks.length ? titleLinks : [""],
+      imageLinks: imageLinks.length ? imageLinks : [""],
+    };
+  };
+
+  const openTaskEditorForEdit = (index: number) => {
+    const parsed = parseTaskBlock(tasks[index] ?? "");
+    setEditingTaskIndex(index);
+    setTaskSection(parsed.section);
+    setTaskDescription(parsed.description);
+    setTaskTitleLinks(parsed.titleLinks);
+    setTaskImageLinks(parsed.imageLinks);
+    setTaskEditorOpen(true);
+  };
 
   useEffect(() => {
     if (readOnly) return;
@@ -117,6 +220,11 @@ export function DtrForm({
   }, [tasks, form, readOnly]);
 
   // Time picking is handled by `timepicker-ui` via `TimepickerInput`.
+  useEffect(() => {
+    if (!taskEditorOpen) return;
+    setTaskAttemptedSubmit(false);
+    setTimeout(() => taskSectionRef.current?.focus(), 0);
+  }, [taskEditorOpen]);
 
   useEffect(() => {
     if (!workDateWatch) return;
@@ -142,7 +250,29 @@ export function DtrForm({
     () => calculateDurationMinutes(startTimeWatch ?? undefined, endTimeWatch ?? undefined),
     [startTimeWatch, endTimeWatch],
   );
+  const hasProjects = selectedProjects.length > 0;
   const closeProjectsDropdown = () => setProjectDropdownOpen(false);
+
+  const taskEditorDisabledReason = useMemo(() => {
+    if (!taskEditorOpen) return null;
+
+    if (!taskSection.trim()) return "Section is required.";
+    if (!taskDescription.trim()) return "Description is required.";
+
+    const titleLinks = taskTitleLinks.map((item) => item.trim());
+    const imageLinks = taskImageLinks.map((item) => item.trim());
+
+    if (titleLinks.some((l) => !l)) return "All title links are required.";
+    if (imageLinks.some((l) => !l)) return "All image links are required.";
+    if (titleLinks.some((l) => !isValidLinkField(l))) {
+      return "One or more title links are invalid. Include an https link with a domain (e.g. Title: https://example.com/page).";
+    }
+    if (imageLinks.some((l) => !isValidLinkField(l))) {
+      return "One or more image links are invalid. Include an https link with a domain (e.g. Proof: https://drive.google.com/... ).";
+    }
+
+    return null;
+  }, [taskEditorOpen, taskSection, taskDescription, taskTitleLinks, taskImageLinks]);
 
   const handleSubmit = async (submit: boolean) => {
     setSubmitting(true);
@@ -184,6 +314,285 @@ export function DtrForm({
       setSubmitting(false);
     }
   };
+
+  const renderTaskEditor = () => (
+    <>
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="grid gap-3">
+          <div className="grid grid-cols-[130px_1fr] items-start gap-3">
+            <div className="pt-3 text-sm font-medium text-slate-700">Section:</div>
+            <div className="space-y-1">
+              <Input
+                ref={taskSectionRef}
+                value={taskSection}
+                placeholder="Created Blog Under Allinclusive"
+                className={`h-12 rounded-xl ${
+                  taskAttemptedSubmit && !taskSection.trim()
+                    ? "border-red-500 focus-visible:ring-red-500"
+                    : ""
+                }`}
+                onChange={(e) => setTaskSection(e.target.value)}
+              />
+              <p className="text-[11px] text-slate-500">
+                Format: action + project (example: "Translated Blog Under Allinclusive")
+              </p>
+              {taskAttemptedSubmit && !taskSection.trim() ? (
+                <p className="text-xs text-red-600">Section is required.</p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-[130px_1fr] items-start gap-3">
+            <div className="pt-3 text-sm font-medium text-slate-700">Description:</div>
+            <div className="space-y-1">
+              <Textarea
+                value={taskDescription}
+                placeholder="Write a short description..."
+                rows={3}
+                className={`rounded-xl bg-white/90 ${
+                  taskAttemptedSubmit && !taskDescription.trim()
+                    ? "border-red-500 focus-visible:ring-red-500"
+                    : ""
+                }`}
+                onChange={(e) => setTaskDescription(e.target.value)}
+              />
+              <p className="text-[11px] text-slate-500">
+                Keep it short and specific (what you did, for which page/post, and status).
+              </p>
+              {taskAttemptedSubmit && !taskDescription.trim() ? (
+                <p className="text-xs text-red-600">Description is required.</p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-[130px_1fr] items-start gap-3">
+            <div className="pt-3 text-sm font-medium text-slate-700">Title: Link</div>
+            <div className="space-y-2">
+              {taskTitleLinks.map((value, index) => (
+                <div key={`title-link-${index}`} className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      ref={(el) => {
+                        titleLinkRefs.current[index] = el;
+                      }}
+                      value={value}
+                      placeholder="Title: https://..."
+                      className={cn(
+                        "h-12 rounded-xl flex-1",
+                        (taskAttemptedSubmit && !value.trim()) ||
+                          (value.trim() && !isValidLinkField(value.trim()))
+                          ? "border-red-500 focus-visible:ring-red-500"
+                          : "",
+                      )}
+                      onChange={(e) => {
+                        const next = [...taskTitleLinks];
+                        next[index] = e.target.value;
+                        setTaskTitleLinks(next);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter" || !e.shiftKey) return;
+                        e.preventDefault();
+                        const nextIndex = taskTitleLinks.length;
+                        setTaskTitleLinks((prev) => [...prev, ""]);
+                        setTimeout(() => {
+                          titleLinkRefs.current[nextIndex]?.focus();
+                        }, 0);
+                      }}
+                    />
+                    {taskTitleLinks.length > 1 ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-12 w-12 rounded-xl"
+                        aria-label="Remove title link field"
+                        onClick={() => {
+                          setTaskTitleLinks((prev) => {
+                            const next = prev.filter((_, idx) => idx !== index);
+                            return next.length ? next : [""];
+                          });
+                          setTimeout(() => {
+                            const nextIndex = Math.max(0, index - 1);
+                            titleLinkRefs.current[nextIndex]?.focus();
+                          }, 0);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </div>
+                  {taskAttemptedSubmit && !value.trim() ? (
+                    <p className="text-xs text-red-600">Link is required.</p>
+                  ) : null}
+                  {(taskAttemptedSubmit || Boolean(value.trim())) &&
+                  value.trim() &&
+                  !isValidLinkField(value.trim()) ? (
+                    <p className="text-xs text-red-600">
+                      Include an https link with a domain (example: `Title: https://example.com/page`).
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+              <p className="text-[11px] text-slate-500">
+                Paste the page/post link(s). Press <span className="font-medium">Shift + Enter</span>{" "}
+                to add another field.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-[130px_1fr] items-start gap-3">
+            <div className="pt-3 text-sm font-medium text-slate-700">Title: Image Link</div>
+            <div className="space-y-2">
+              {taskImageLinks.map((value, index) => (
+                <div key={`image-link-${index}`} className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      ref={(el) => {
+                        imageLinkRefs.current[index] = el;
+                      }}
+                      value={value}
+                      placeholder="Proof: https://..."
+                      className={cn(
+                        "h-12 rounded-xl flex-1",
+                        (taskAttemptedSubmit && !value.trim()) ||
+                          (value.trim() && !isValidLinkField(value.trim()))
+                          ? "border-red-500 focus-visible:ring-red-500"
+                          : "",
+                      )}
+                      onChange={(e) => {
+                        const next = [...taskImageLinks];
+                        next[index] = e.target.value;
+                        setTaskImageLinks(next);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter" || !e.shiftKey) return;
+                        e.preventDefault();
+                        const nextIndex = taskImageLinks.length;
+                        setTaskImageLinks((prev) => [...prev, ""]);
+                        setTimeout(() => {
+                          imageLinkRefs.current[nextIndex]?.focus();
+                        }, 0);
+                      }}
+                    />
+                    {taskImageLinks.length > 1 ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-12 w-12 rounded-xl"
+                        aria-label="Remove image link field"
+                        onClick={() => {
+                          setTaskImageLinks((prev) => {
+                            const next = prev.filter((_, idx) => idx !== index);
+                            return next.length ? next : [""];
+                          });
+                          setTimeout(() => {
+                            const nextIndex = Math.max(0, index - 1);
+                            imageLinkRefs.current[nextIndex]?.focus();
+                          }, 0);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </div>
+                  {taskAttemptedSubmit && !value.trim() ? (
+                    <p className="text-xs text-red-600">Image link is required.</p>
+                  ) : null}
+                  {(taskAttemptedSubmit || Boolean(value.trim())) &&
+                  value.trim() &&
+                  !isValidLinkField(value.trim()) ? (
+                    <p className="text-xs text-red-600">
+                      Include an https link with a domain (example: `Proof: https://drive.google.com/...`).
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+              <p className="text-[11px] text-slate-500">
+                Paste image proof link(s) (Drive, Dropbox, etc). Press{" "}
+                <span className="font-medium">Shift + Enter</span> to add another field.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+	      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+	        <Button
+	          type="button"
+	          variant="outline"
+	          className="h-12 w-full rounded-xl sm:w-[140px]"
+	          onClick={() => {
+	            setTaskEditorOpen(false);
+	            resetTaskEditor();
+	          }}
+	        >
+	          Cancel
+	        </Button>
+	        <Button
+	          type="button"
+	          onClick={() => {
+		            setTaskAttemptedSubmit(true);
+	            const section = taskSection.trim();
+	            const description = taskDescription.trim();
+	            const titleLinks = taskTitleLinks.map((item) => item.trim());
+	            const imageLinks = taskImageLinks.map((item) => item.trim());
+
+            if (!section) return toast.error("Section is required.");
+            if (!description) return toast.error("Description is required.");
+            if (titleLinks.some((link) => !link)) return toast.error("All title links are required.");
+            if (imageLinks.some((link) => !link)) return toast.error("All image links are required.");
+            if (titleLinks.some((link) => !isValidLinkField(link))) {
+              return toast.error("One or more title links are invalid. Include an https link with a domain.");
+            }
+            if (imageLinks.some((link) => !isValidLinkField(link))) {
+              return toast.error("One or more image links are invalid. Include an https link with a domain.");
+            }
+
+            const lines = [
+              `Section: ${section}`,
+              "Description:",
+              description,
+              "Title: Link",
+              ...titleLinks,
+              "Title: Image Link",
+              ...imageLinks,
+            ];
+
+            const block = lines.join("\n");
+            setTasks((prev) => {
+              if (editingTaskIndex === null) return [...prev, block];
+              return prev.map((item, idx) => (idx === editingTaskIndex ? block : item));
+            });
+	            resetTaskEditor();
+	            setTaskEditorOpen(false);
+	          }}
+	          disabled={Boolean(taskEditorDisabledReason)}
+	          className="h-12 w-full justify-center rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 sm:flex-1"
+	        >
+          {editingTaskIndex === null ? (
+            <>
+              <Plus className="h-4 w-4" />
+              Add task
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4" />
+              Save changes
+            </>
+	          )}
+	        </Button>
+	      </div>
+
+      {taskEditorDisabledReason ? (
+        <p className="mt-2 text-xs text-red-600">{taskEditorDisabledReason}</p>
+      ) : (
+        <p className="mt-2 text-xs text-slate-500">
+          All fields are required. Press <span className="font-medium">Shift + Enter</span> to add another link field.
+        </p>
+      )}
+    </>
+  );
 
   return (
     <>
@@ -277,25 +686,87 @@ export function DtrForm({
             <div className="space-y-2">
               <Label>Project / Account</Label>
               <div className="relative space-y-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-between rounded-2xl border-slate-200 bg-white/90 shadow-sm"
-                  disabled={readOnly}
-                  onClick={() => setProjectDropdownOpen((v) => !v)}
-                >
-                  {selectedProjects.length
-                    ? `${selectedProjects.length} selected`
-                    : "Select up to 4 projects"}
-                </Button>
+	                <Button
+	                  type="button"
+	                  variant="outline"
+	                  className={cn(
+	                    "w-full justify-between rounded-2xl border-slate-200 bg-white/90 shadow-sm",
+	                    form.formState.errors.project_account
+	                      ? "border-red-500 focus-visible:ring-red-500"
+	                      : "",
+	                  )}
+	                  disabled={readOnly}
+	                  onClick={() => setProjectDropdownOpen((v) => !v)}
+	                >
+	                  <div className="flex w-full items-center justify-between gap-3">
+	                    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto whitespace-nowrap pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+	                      {selectedProjects.length ? (
+	                        selectedProjects
+	                          .map((id) => projectOptions.find((p) => p.id === id))
+	                          .filter(Boolean)
+	                          .map((p) => (
+	                            <Badge
+	                              key={p!.id}
+	                              variant="secondary"
+	                              className="flex items-center gap-1 rounded-full bg-slate-100 text-slate-800"
+	                            >
+	                              <span className="max-w-[140px] truncate">{p!.name}</span>
+	                              {!readOnly ? (
+	                                <span
+	                                  role="button"
+	                                  tabIndex={0}
+	                                  className="ml-1 inline-flex rounded-full p-0.5 text-slate-600 hover:text-slate-900"
+	                                  aria-label={`Remove ${p!.name}`}
+	                                  onClick={(e) => {
+	                                    e.preventDefault();
+	                                    e.stopPropagation();
+	                                    setSelectedProjects((prev) =>
+	                                      prev.filter((pid) => pid !== p!.id),
+	                                    );
+	                                  }}
+	                                  onKeyDown={(e) => {
+	                                    if (e.key !== "Enter" && e.key !== " ") return;
+	                                    e.preventDefault();
+	                                    e.stopPropagation();
+	                                    setSelectedProjects((prev) =>
+	                                      prev.filter((pid) => pid !== p!.id),
+	                                    );
+	                                  }}
+	                                >
+	                                  <X className="h-3.5 w-3.5" />
+	                                </span>
+	                              ) : null}
+	                            </Badge>
+	                          ))
+	                      ) : (
+	                        <span className="truncate text-slate-500">Select up to 4 projects</span>
+	                      )}
+	                    </div>
+	                    <span className="shrink-0 text-xs font-semibold text-slate-500">
+	                      {selectedProjects.length}/4
+	                    </span>
+	                  </div>
+	                </Button>
+                {form.formState.errors.project_account ? (
+                  <p className="text-xs text-red-600">
+                    {String(form.formState.errors.project_account.message ?? "Project is required")}
+                  </p>
+                ) : null}
                 {projectDropdownOpen && !readOnly ? (
                   <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white/98 shadow-xl backdrop-blur-lg">
-                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2 text-sm">
-                      <span className="text-slate-600">{selectedProjects.length}/4 selected</span>
-                      <Button type="button" size="sm" variant="ghost" onClick={closeProjectsDropdown}>
-                        Close
-                      </Button>
-                    </div>
+	                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2 text-sm">
+	                      <span className="text-slate-600">{selectedProjects.length}/4</span>
+		                      <Button
+		                        type="button"
+		                        size="icon"
+		                        variant="ghost"
+		                        className="h-8 w-8 rounded-full"
+		                        onClick={closeProjectsDropdown}
+		                        aria-label="Close project picker"
+		                      >
+		                        <X className="h-4 w-4" />
+		                      </Button>
+		                    </div>
                     <div className="max-h-64 overflow-auto p-2">
                       {projectOptions.map((p) => {
                         const active = selectedProjects.includes(p.id);
@@ -310,19 +781,25 @@ export function DtrForm({
                               active ? "bg-accent text-white shadow-sm" : "hover:bg-slate-50",
                               disabled ? "opacity-50 cursor-not-allowed" : "",
                             )}
-                            onClick={() => {
-                              setSelectedProjects((prev) =>
-                                prev.includes(p.id)
-                                  ? prev.filter((id) => id !== p.id)
-                                  : prev.length < 4
-                                    ? [...prev, p.id]
-                                    : prev,
-                              );
-                            }}
-                          >
-                            <span>{p.name}</span>
-                            {active ? <Badge variant="secondary">Selected</Badge> : null}
-                          </button>
+	                            onClick={() => {
+	                              setSelectedProjects((prev) => {
+	                                const next = prev.includes(p.id)
+	                                  ? prev.filter((id) => id !== p.id)
+	                                  : prev.length < 4
+	                                    ? [...prev, p.id]
+	                                    : prev;
+
+	                                // Auto-close once the 4th project is chosen.
+	                                if (next.length === 4 && prev.length !== 4) {
+	                                  setProjectDropdownOpen(false);
+	                                }
+	                                return next;
+	                              });
+	                            }}
+	                          >
+	                            <span>{p.name}</span>
+	                            {/* Active state is already highlighted via background; no extra "Selected" tag. */}
+	                          </button>
                         );
                       })}
                       {!projectOptions.length ? (
@@ -331,36 +808,9 @@ export function DtrForm({
                     </div>
                   </div>
                 ) : null}
-                <div className="flex flex-wrap gap-2">
-                  {(form.watch("project_account") || "")
-                    .split(",")
-                    .map((name) => name.trim())
-                    .filter(Boolean)
-                    .map((name) => (
-                      <Badge key={name} variant="secondary" className="flex items-center gap-2">
-                        {name}
-                        {!readOnly ? (
-                          <button
-                            type="button"
-                            className="text-[10px] font-semibold text-slate-600 hover:text-slate-800"
-                            onClick={() => {
-                              setSelectedProjects((prev) =>
-                                prev.filter(
-                                  (id) => projectOptions.find((p) => p.id === id)?.name !== name,
-                                ),
-                              );
-                            }}
-                          >
-                            ×
-                          </button>
-                        ) : null}
-                      </Badge>
-                    ))}
                 </div>
               </div>
             </div>
-          </div>
-
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Start time</Label>
@@ -389,93 +839,99 @@ export function DtrForm({
           <div className="space-y-2">
             <Label>Accomplished tasks</Label>
             <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm space-y-3">
-              {tasks.length ? (
-                <div className="space-y-2">
-                  {tasks.map((task, index) => (
-                    <div
-                      key={`${task}-${index}`}
-                      className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
-                    >
-                      <div className="text-sm text-slate-800 leading-relaxed whitespace-pre-line">
-                        <span className="text-slate-500 mr-2">{index + 1}.</span>
-                        {task}
-                      </div>
-                      {!readOnly ? (
-                        <button
-                          type="button"
-                          className="mt-0.5 rounded-md p-1 text-slate-500 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-                          aria-label="Remove task"
-                          onClick={() => {
-                            setTasks((prev) => prev.filter((_, idx) => idx !== index));
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              ) : (
+	              {tasks.length ? (
+	                <div className="space-y-2">
+		                  {tasks.map((task, index) => {
+		                    const parsed = parseTaskBlock(task);
+		                    const isExpanded = !readOnly && taskEditorOpen && editingTaskIndex === index;
+
+	                    return (
+	                      <div
+	                        key={`${task}-${index}`}
+	                        className="rounded-xl border border-slate-200 bg-slate-50"
+	                      >
+	                        {!isExpanded ? (
+	                          <div className="flex items-start justify-between gap-3 px-4 py-3">
+	                            <div className="min-w-0 flex-1">
+	                              <div className="flex max-w-full items-center gap-2 rounded-lg border-2 border-emerald-500 bg-white px-3 py-2 text-sm font-semibold text-slate-900">
+	                                <span className="text-emerald-600">{index + 1}.</span>
+	                                <span className="truncate">{parsed.section || "Untitled task"}</span>
+	                              </div>
+	                            </div>
+	                            {!readOnly ? (
+	                              <div className="mt-0.5 flex items-center gap-1">
+	                                <button
+	                                  type="button"
+	                                  className="rounded-md p-1 text-slate-500 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+	                                  aria-label="Edit task"
+	                                  onClick={() => openTaskEditorForEdit(index)}
+	                                >
+	                                  <Pencil className="h-4 w-4" />
+	                                </button>
+		                                <button
+		                                  type="button"
+		                                  className="rounded-md p-1 text-slate-500 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+		                                  aria-label="Delete task"
+		                                  onClick={() => {
+		                                    setTasks((prev) => prev.filter((_, idx) => idx !== index));
+		                                    if (editingTaskIndex === index) {
+		                                      resetTaskEditor();
+		                                      setTaskEditorOpen(false);
+	                                    } else if (editingTaskIndex !== null && editingTaskIndex > index) {
+	                                      setEditingTaskIndex((prev) =>
+	                                        prev === null ? null : Math.max(0, prev - 1),
+	                                      );
+	                                    }
+		                                  }}
+		                                >
+		                                  <Trash2 className="h-4 w-4" />
+		                                </button>
+	                              </div>
+	                            ) : null}
+	                          </div>
+	                        ) : null}
+
+		                        {isExpanded ? (
+		                          <div className="bg-white/70 px-4 py-4">
+		                            {renderTaskEditor()}
+		                          </div>
+		                        ) : null}
+		                      </div>
+		                    );
+		                  })}
+		                </div>
+		              ) : !taskEditorOpen ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center">
                   <p className="text-sm font-medium text-slate-700">No tasks added yet</p>
                   <p className="mt-1 text-xs text-slate-500">
                     Add tasks one by one using the field below.
                   </p>
                 </div>
-              )}
-
-              {!readOnly ? (
-                <div className="space-y-2">
-                  <Textarea
-                    value={taskDraft}
-                    placeholder={`Created Blog Under Allinclusive\nDescription:\nTitle: Link\nTitle: Image Link`}
-                    rows={4}
-                    className="rounded-xl bg-white/90"
-                    onChange={(e) => setTaskDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key !== "Enter") return;
-                      // Keep Enter for newlines; Ctrl/Cmd+Enter adds the task.
-                      if (!(e.ctrlKey || e.metaKey)) return;
-                      e.preventDefault();
-                      const next = taskDraft.trim();
-                      if (!next) return;
-                      setTasks((prev) => [...prev, next]);
-                      setTaskDraft("");
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      const next = taskDraft.trim();
-                      if (!next) return;
-                      setTasks((prev) => [...prev, next]);
-                      setTaskDraft("");
-                    }}
-                    disabled={!taskDraft.trim()}
-                    className="h-12 w-full justify-center rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add task
-                  </Button>
-                  <p className="text-xs text-slate-500">
-                    Tip: Press <span className="font-medium">Ctrl + Enter</span> to add quickly.
-                  </p>
-                </div>
               ) : null}
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Suggested format
-                </p>
-                <p className="mt-2 text-xs text-slate-600">
-                  Keep it short and include the project name. Add links on a separate line:
-                </p>
-                <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 font-mono text-[11px] leading-relaxed text-slate-700 whitespace-pre-line">
-                  {`Created Blog Under Allinclusive\nDescription:\nTitle: Link\nTitle: Image Link\n\nTranslated Blog Under Allinclusive\nDescription:\nTitle: Link\nTitle: Image Link\n\nAnd so on.`}
-                </div>
-              </div>
-            </div>
-          </div>
+	              {!readOnly ? (
+	                <div className="space-y-2">
+			                  {!taskEditorOpen ? (
+			                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+			                      <Button
+			                        type="button"
+			                        onClick={() => {
+			                          resetTaskEditor();
+			                          setTaskEditorOpen(true);
+			                        }}
+			                        className="h-12 w-full justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+			                      >
+			                        <Plus className="h-4 w-4" />
+			                        Add task
+			                      </Button>
+			                    </div>
+			                  ) : editingTaskIndex === null ? (
+			                    renderTaskEditor()
+			                  ) : null}
+		                </div>
+	              ) : null}
+	            </div>
+	          </div>
 
           {!hideActions ? (
             <div className="flex justify-end gap-3 pt-2">
@@ -483,7 +939,7 @@ export function DtrForm({
                 type="button"
                 variant="outline"
                 onClick={() => handleSubmit(false)}
-                disabled={submitting || readOnly}
+                disabled={submitting || readOnly || !hasProjects}
               >
                 {submitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -495,7 +951,7 @@ export function DtrForm({
               <Button
                 type="button"
                 onClick={() => handleSubmit(true)}
-                disabled={submitting || readOnly}
+                disabled={submitting || readOnly || !hasProjects}
               >
                 {submitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -505,6 +961,11 @@ export function DtrForm({
                 Submit
               </Button>
             </div>
+          ) : null}
+          {!hideActions && !readOnly && !hasProjects ? (
+            <p className="pt-2 text-xs text-slate-500">
+              Select at least one project before saving or submitting.
+            </p>
           ) : null}
         </div>
       </div>
