@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, KeyRound, ShieldAlert } from "lucide-react";
-import { PageHeader } from "@/components/layout/page-header";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireProfile } from "@/lib/auth/session";
@@ -21,24 +21,35 @@ export default async function PasswordSettingsPage() {
     : { data: [] as Array<{ id: string; full_name: string; email: string; status: string }> };
 
   return (
-    <div className="space-y-6 md:space-y-8 max-w-6xl mx-auto px-3 sm:px-4 w-full overflow-x-hidden">
-      <PageHeader
-        title={isManager ? "Password Management" : "Password Help"}
-        description={
-          isManager
-            ? "Change your password and manage employee passwords."
-            : "Employees can’t reset passwords in the app. Contact your manager for help."
-        }
-        userId={profile.id}
-        actions={
-          <Button variant="outline" asChild>
-            <Link href="/settings" className="gap-2 inline-flex items-center">
+    <div className="space-y-6 md:space-y-8 w-full overflow-x-hidden">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            className="-ml-2 mt-0.5"
+            aria-label="Back to settings"
+          >
+            <Link href="/settings">
               <ArrowLeft className="h-4 w-4" />
-              Back to settings
             </Link>
           </Button>
-        }
-      />
+          <div>
+            <h1 className="page-title">
+              {isManager ? "Password Management" : "Password Help"}
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              {isManager
+                ? "Change your password and manage employee passwords."
+                : "Employees can't reset passwords in the app. Contact your manager for help."}
+            </p>
+          </div>
+        </div>
+        <div className="hidden md:block">
+          <NotificationBell userId={profile.id} />
+        </div>
+      </div>
 
       {isManager ? (
         <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-white via-slate-50 to-blue-50 p-5 sm:p-6 shadow-sm">
@@ -56,24 +67,68 @@ export default async function PasswordSettingsPage() {
             </div>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-rose-50 p-5 sm:p-6 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-sm border border-slate-200">
+              <ShieldAlert className="h-5 w-5 text-accent" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900">
+                Password reset is manager-controlled
+              </p>
+              <p className="mt-1 text-xs text-slate-600">
+                For security, employees cannot reset passwords from the app. Your manager will provide a new
+                temporary password.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isManager ? (
         <PasswordManagement isManager={isManager} employees={employees ?? []} />
       ) : (
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5 text-accent" />
-              Contact Your Manager
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-slate-700">
-            <p className="text-slate-600">
-              Please contact your manager to request a password reset or account recovery.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-accent" />
+                Contact Your Manager
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm text-slate-700">
+              <p className="text-slate-600">
+                Ask your manager to reset your password or help with account recovery.
+              </p>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  What happens next
+                </p>
+                <ol className="mt-2 space-y-1 text-sm text-slate-700 list-decimal pl-5">
+                  <li>Your manager sets a new temporary password.</li>
+                  <li>You sign in using the temporary password.</li>
+                  <li>Contact the manager again if you need another reset.</li>
+                </ol>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Message Template</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-slate-700">
+              <p className="text-slate-600">Send this to your manager:</p>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 font-mono text-xs leading-relaxed text-slate-700 whitespace-pre-line">
+                {`Hi Manager, I need a password reset for my account.\nEmail: ${profile.email}\nPlease send me a temporary password. Thanks.`}
+              </div>
+              <p className="text-xs text-slate-500">
+                Tip: Share passwords only through a secure channel (not public chat).
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );

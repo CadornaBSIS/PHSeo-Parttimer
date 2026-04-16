@@ -1,22 +1,22 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, addDays, parseISO } from "date-fns";
-import { Loader2, Save, Send } from "lucide-react";
+import { Loader2, Plus, Save, Send, X } from "lucide-react";
 import { dtrFormSchema, DtrFormValues } from "../schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { saveDtrAction } from "../actions";
-import { parseImageLinks } from "../image-links";
 import { calculateDurationMinutes, formatMinutes, ensureMonday, isWithinWeek } from "@/utils/date";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { TimepickerInput } from "@/components/common/timepicker-input";
 
 type Props = {
   projects: { id: string; name: string }[];
@@ -29,15 +29,18 @@ type Props = {
 const fallbackProjects = [
   "Tech24",
   "KoreanFiz",
-  "ViteSeo",
-  "Tech24&KoreanFiz",
+  "Allinclusive",
   "Wixmediagroup",
   "Monarqincubator",
   "Tabletalegames",
-  "Ad hoc",
-  "무료슬롯.org",
   "WooriCasino",
   "Vegasbetgames",
+  "Yyzhenshun",
+  "Allegiantairticket",
+  "무료슬롯.org",
+  "PH SEO",
+  "Ad hoc",
+  
 ].map((name, idx) => ({ id: `fallback-${idx}`, name }));
 
 function isPersistedProjectId(projectId: string | null | undefined) {
@@ -60,13 +63,11 @@ export function DtrForm({
   const baseDate = initialData?.work_date ?? fallbackWeek?.start ?? nowStr;
   const mondayFromBase = format(ensureMonday(parseISO(baseDate)), "yyyy-MM-dd");
   const [status, setStatus] = useState(initialData?.status ?? "draft");
+  const readOnly = forceReadOnly || status === "submitted";
   const [submitting, setSubmitting] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [tempDate, setTempDate] = useState(baseDate);
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
-  const [startPickerOpen, setStartPickerOpen] = useState(false);
-  const [endPickerOpen, setEndPickerOpen] = useState(false);
-  const [draftTime, setDraftTime] = useState<string | null>(null);
 
   const initialProjectNames =
     initialData?.project_account?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
@@ -98,57 +99,24 @@ export function DtrForm({
   const startTimeWatch = form.watch("start_time");
   const endTimeWatch = form.watch("end_time");
   const workDateWatch = form.watch("work_date");
-  const imageLinkWatch = form.watch("image_link");
-  const parsedImageLinks = useMemo(
-    () => parseImageLinks(imageLinkWatch),
-    [imageLinkWatch],
-  );
 
-  type TimeParts = { hour: number; minute: number; am: boolean };
-  const parseTime = useCallback((val?: string | null): TimeParts => {
-    if (!val) return { hour: 9, minute: 0, am: true };
-    const [hStr, mStr] = val.split(":");
-    let h = Number(hStr);
-    const m = Number(mStr);
-    const am = h < 12;
-    if (h === 0) h = 12;
-    if (h > 12) h -= 12;
-    return { hour: isNaN(h) ? 9 : h, minute: isNaN(m) ? 0 : m, am };
-  }, []);
+  const parseTasks = (notes?: string | null) =>
+    String(notes ?? "")
+      .trim()
+      // Store tasks as blocks separated by blank lines.
+      .split(/\n{2,}/)
+      .map((block) => block.trim())
+      .filter(Boolean);
 
-  const format24 = (parts: TimeParts) => {
-    let h = parts.hour % 12;
-    if (!parts.am) h += 12;
-    const hh = `${h}`.padStart(2, "0");
-    const mm = `${Math.max(0, Math.min(59, parts.minute))}`.padStart(2, "0");
-    return `${hh}:${mm}`;
-  };
+  const [tasks, setTasks] = useState<string[]>(() => parseTasks(initialData?.notes));
+  const [taskDraft, setTaskDraft] = useState("");
 
-  const formatDisplay = (val?: string | null) => {
-    const { hour, minute, am } = parseTime(val);
-    return `${`${hour}`.padStart(2, "0")}:${`${minute}`.padStart(2, "0")} ${am ? "am" : "pm"}`;
-  };
+  useEffect(() => {
+    if (readOnly) return;
+    form.setValue("notes", tasks.join("\n\n"));
+  }, [tasks, form, readOnly]);
 
-  const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => `${i}`.padStart(2, "0")), []);
-  const minutes = useMemo(() => Array.from({ length: 60 }, (_, i) => `${i}`.padStart(2, "0")), []);
-
-  const openPicker = (field: "start" | "end") => {
-    setDraftTime(field === "start" ? form.watch("start_time") ?? "09:00" : form.watch("end_time") ?? "18:00");
-    setStartPickerOpen(field === "start");
-    setEndPickerOpen(field === "end");
-  };
-  const closePicker = () => {
-    setStartPickerOpen(false);
-    setEndPickerOpen(false);
-    setDraftTime(null);
-  };
-  const commitPicker = (field: "start" | "end") => {
-    if (draftTime) {
-      if (field === "start") form.setValue("start_time", draftTime);
-      else form.setValue("end_time", draftTime);
-    }
-    closePicker();
-  };
+  // Time picking is handled by `timepicker-ui` via `TimepickerInput`.
 
   useEffect(() => {
     if (!workDateWatch) return;
@@ -174,8 +142,6 @@ export function DtrForm({
     () => calculateDurationMinutes(startTimeWatch ?? undefined, endTimeWatch ?? undefined),
     [startTimeWatch, endTimeWatch],
   );
-
-  const readOnly = forceReadOnly || status === "submitted";
   const closeProjectsDropdown = () => setProjectDropdownOpen(false);
 
   const handleSubmit = async (submit: boolean) => {
@@ -399,80 +365,116 @@ export function DtrForm({
             <div className="space-y-2">
               <Label>Start time</Label>
               <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm space-y-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-between"
+                <TimepickerInput
+                  id="start_time"
+                  value={startTimeWatch ?? "09:00"}
                   disabled={readOnly}
-                  onClick={() => openPicker("start")}
-                >
-                  {formatDisplay(form.watch("start_time"))}
-                </Button>
+                  onChange={(next) => form.setValue("start_time", next)}
+                />
               </div>
             </div>
             <div className="space-y-2">
               <Label>End time</Label>
               <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm space-y-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-between"
+                <TimepickerInput
+                  id="end_time"
+                  value={endTimeWatch ?? "18:00"}
                   disabled={readOnly}
-                  onClick={() => openPicker("end")}
-                >
-                  {formatDisplay(form.watch("end_time"))}
-                </Button>
+                  onChange={(next) => form.setValue("end_time", next)}
+                />
               </div>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Notes</Label>
-            <Textarea
-              placeholder="What did you work on?"
-              disabled={readOnly}
-              className="rounded-2xl bg-white/90"
-              {...form.register("notes")}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Image links (one per line)</Label>
-            {readOnly ? (
-              <div className="rounded-2xl border border-slate-200 bg-white/90 p-3">
-                {parsedImageLinks.length ? (
-                  <div className="space-y-2">
-                    {parsedImageLinks.map((item, index) => (
-                      <a
-                        key={`${item.url}-${index}`}
-                        href={item.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block break-all text-sm text-blue-700 underline underline-offset-2 hover:text-blue-800"
-                      >
-                        {index + 1}. {item.title ? `${item.title}: ` : ""}
-                        {item.url}
-                      </a>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-500 break-all">
-                    {imageLinkWatch?.trim() || "No image link attached."}
+            <Label>Accomplished tasks</Label>
+            <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm space-y-3">
+              {tasks.length ? (
+                <div className="space-y-2">
+                  {tasks.map((task, index) => (
+                    <div
+                      key={`${task}-${index}`}
+                      className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                    >
+                      <div className="text-sm text-slate-800 leading-relaxed whitespace-pre-line">
+                        <span className="text-slate-500 mr-2">{index + 1}.</span>
+                        {task}
+                      </div>
+                      {!readOnly ? (
+                        <button
+                          type="button"
+                          className="mt-0.5 rounded-md p-1 text-slate-500 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+                          aria-label="Remove task"
+                          onClick={() => {
+                            setTasks((prev) => prev.filter((_, idx) => idx !== index));
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center">
+                  <p className="text-sm font-medium text-slate-700">No tasks added yet</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Add tasks one by one using the field below.
                   </p>
-                )}
+                </div>
+              )}
+
+              {!readOnly ? (
+                <div className="space-y-2">
+                  <Textarea
+                    value={taskDraft}
+                    placeholder={`Created Blog Under Allinclusive\nDescription:\nTitle: Link\nTitle: Image Link`}
+                    rows={4}
+                    className="rounded-xl bg-white/90"
+                    onChange={(e) => setTaskDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+                      // Keep Enter for newlines; Ctrl/Cmd+Enter adds the task.
+                      if (!(e.ctrlKey || e.metaKey)) return;
+                      e.preventDefault();
+                      const next = taskDraft.trim();
+                      if (!next) return;
+                      setTasks((prev) => [...prev, next]);
+                      setTaskDraft("");
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      const next = taskDraft.trim();
+                      if (!next) return;
+                      setTasks((prev) => [...prev, next]);
+                      setTaskDraft("");
+                    }}
+                    disabled={!taskDraft.trim()}
+                    className="h-12 w-full justify-center rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add task
+                  </Button>
+                  <p className="text-xs text-slate-500">
+                    Tip: Press <span className="font-medium">Ctrl + Enter</span> to add quickly.
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Suggested format
+                </p>
+                <p className="mt-2 text-xs text-slate-600">
+                  Keep it short and include the project name. Add links on a separate line:
+                </p>
+                <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 font-mono text-[11px] leading-relaxed text-slate-700 whitespace-pre-line">
+                  {`Created Blog Under Allinclusive\nDescription:\nTitle: Link\nTitle: Image Link\n\nTranslated Blog Under Allinclusive\nDescription:\nTitle: Link\nTitle: Image Link\n\nAnd so on.`}
+                </div>
               </div>
-            ) : (
-              <Textarea
-                placeholder={"Title: https://example.com/image.png"}
-                disabled={readOnly}
-                className="rounded-2xl bg-white/90"
-                rows={4}
-                {...form.register("image_link")}
-              />
-            )}
-            <p className="text-xs text-slate-500">
-              Format each line as <span className="font-medium">Title: https://...</span> (one per line).
-            </p>
+            </div>
           </div>
 
           {!hideActions ? (
@@ -507,93 +509,6 @@ export function DtrForm({
         </div>
       </div>
 
-      {(startPickerOpen || endPickerOpen) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-slate-900 text-white shadow-2xl">
-            <div className="flex items-center justify-between px-4 py-3 text-sm font-semibold">
-              <button onClick={closePicker} className="text-amber-300 hover:text-amber-200">
-                Cancel
-              </button>
-              <span className="uppercase tracking-[0.2em] text-slate-300 text-xs">
-                {startPickerOpen ? "Start time" : "End time"}
-              </span>
-              <button
-                onClick={() => commitPicker(startPickerOpen ? "start" : "end")}
-                className="text-emerald-300 hover:text-emerald-200"
-              >
-                Save
-              </button>
-            </div>
-            <div className="border-t border-slate-800 px-4 py-5">
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="col-span-1">
-                  <p className="mb-2 text-[11px] uppercase text-slate-400">Hour</p>
-                  <div className="h-48 overflow-y-auto rounded-lg bg-slate-800/80 shadow-inner">
-                    {hours.map((h) => (
-                      <button
-                        key={h}
-                        className={cn(
-                          "block w-full px-2 py-2 text-sm transition",
-                          draftTime?.startsWith(h)
-                            ? "bg-emerald-500 text-slate-900 font-semibold"
-                            : "text-slate-100 hover:bg-slate-700/80",
-                        )}
-                        onClick={() => {
-                          const parts = parseTime(draftTime);
-                          setDraftTime(format24({ ...parts, hour: Number(h), am: parts.am }));
-                        }}
-                      >
-                        {h}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="col-span-1">
-                  <p className="mb-2 text-[11px] uppercase text-slate-400">Minute</p>
-                  <div className="h-48 overflow-y-auto rounded-lg bg-slate-800/80 shadow-inner">
-                    {minutes.map((m) => (
-                      <button
-                        key={m}
-                        className={cn(
-                          "block w-full px-2 py-2 text-sm transition",
-                          draftTime?.split(":")[1] === m
-                            ? "bg-emerald-500 text-slate-900 font-semibold"
-                            : "text-slate-100 hover:bg-slate-700/80",
-                        )}
-                        onClick={() => {
-                          const parts = parseTime(draftTime);
-                          setDraftTime(format24({ ...parts, minute: Number(m) }));
-                        }}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="col-span-1">
-                  <p className="mb-2 text-[11px] uppercase text-slate-400">AM / PM</p>
-                  <div className="grid gap-2">
-                    {(["am", "pm"] as const).map((meridian) => (
-                      <Button
-                        key={meridian}
-                        type="button"
-                        variant={parseTime(draftTime).am === (meridian === "am") ? "default" : "outline"}
-                        className="w-full"
-                        onClick={() => {
-                          const parts = parseTime(draftTime);
-                          setDraftTime(format24({ ...parts, am: meridian === "am" }));
-                        }}
-                      >
-                        {meridian.toUpperCase()}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
