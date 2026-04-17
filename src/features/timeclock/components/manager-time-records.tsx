@@ -6,6 +6,13 @@ import { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/data-table";
 import { cn } from "@/lib/utils";
@@ -14,7 +21,7 @@ import {
   type ManagerTimeRecordRow,
 } from "@/features/timeclock/actions";
 import { Download } from "lucide-react";
-import { format, parseISO, startOfWeek } from "date-fns";
+import { addDays, format, parseISO, startOfWeek } from "date-fns";
 
 function formatManilaTime(value: string | null) {
   if (!value) return "--";
@@ -42,6 +49,7 @@ export function ManagerTimeRecords() {
   const [rows, setRows] = useState<ManagerTimeRecordRow[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const inFlightRef = useRef(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60000);
@@ -59,7 +67,10 @@ export function ManagerTimeRecords() {
           toast.error(result.error);
           return;
         }
-        if (!date) setWorkDate(result.data?.work_date ?? "");
+        if (!date) {
+          const resolvedDate = result.data?.work_date ?? "";
+          setWorkDate(resolvedDate);
+        }
         setRows(result.data?.rows ?? []);
       } catch {
         toast.error("Failed to load team time record.");
@@ -73,6 +84,20 @@ export function ManagerTimeRecords() {
   useEffect(() => {
     load(undefined, "foreground");
   }, [load]);
+
+  const isIsoDate = useCallback((value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value), []);
+
+  const weekStartForExport = useMemo(() => {
+    if (!workDate || !isIsoDate(workDate)) return "";
+    const base = parseISO(workDate);
+    const monday = startOfWeek(base, { weekStartsOn: 1 });
+    return format(monday, "yyyy-MM-dd");
+  }, [isIsoDate, workDate]);
+
+  const weekEndForExport = useMemo(() => {
+    if (!weekStartForExport) return "";
+    return format(addDays(parseISO(weekStartForExport), 6), "yyyy-MM-dd");
+  }, [weekStartForExport]);
 
   useEffect(() => {
     const getManilaToday = () =>
@@ -208,7 +233,7 @@ export function ManagerTimeRecords() {
 
   return (
     <div className={cn("space-y-4", loading ? "opacity-90" : "")}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <p className="text-sm font-semibold text-slate-900">Team time record</p>
           <p className="text-xs text-slate-500">
@@ -216,44 +241,97 @@ export function ManagerTimeRecords() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-end">
           <div className="space-y-1">
             <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500">
               Work date
             </p>
-            <Input
-              type="date"
-              value={workDate}
-              onChange={(e) => {
-                const next = e.target.value;
-                setWorkDate(next);
-                load(next, "foreground");
-              }}
-              className="w-[180px]"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={workDate}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setWorkDate(next);
+                  load(next, "foreground");
+                }}
+                className="h-10 w-full sm:w-[180px]"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                disabled={!isIsoDate(workDate)}
+                aria-label="Download export"
+                onClick={() => {
+                  if (!isIsoDate(workDate)) return;
+                  setExportOpen(true);
+                }}
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-          <Button asChild type="button" variant="outline" className="h-10">
-            <a href={`/api/export/time-records?date=${workDate}`}>
-              <Download className="h-4 w-4" />
-              Export day
-            </a>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10"
-            onClick={() => {
-              const base = workDate && /^\d{4}-\d{2}-\d{2}$/.test(workDate) ? parseISO(workDate) : new Date();
-              const monday = startOfWeek(base, { weekStartsOn: 1 });
-              const weekStart = format(monday, "yyyy-MM-dd");
-              window.location.href = `/api/export/time-records?week_start=${weekStart}`;
-            }}
-          >
-            <Download className="h-4 w-4" />
-            Export week
-          </Button>
         </div>
       </div>
+
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Download time records</DialogTitle>
+            <DialogDescription>
+              Choose what to download for the selected date.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-slate-500">Selected date</span>
+              <span className="font-semibold text-slate-900">{workDate || "--"}</span>
+            </div>
+            {weekStartForExport ? (
+              <div className="mt-1 flex items-center justify-between gap-3 text-sm">
+                <span className="text-slate-500">Week range</span>
+                <span className="font-medium text-slate-900">
+                  {weekStartForExport} – {weekEndForExport}
+                </span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              className="w-full"
+              disabled={!isIsoDate(workDate)}
+              onClick={() => {
+                if (!isIsoDate(workDate)) return;
+                setExportOpen(false);
+                window.location.href = `/api/export/time-records?date=${workDate}`;
+              }}
+            >
+              <Download className="h-4 w-4" />
+              Download day
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={!weekStartForExport}
+              onClick={() => {
+                if (!weekStartForExport) return;
+                setExportOpen(false);
+                window.location.href = `/api/export/time-records?week_start=${weekStartForExport}`;
+              }}
+            >
+              <Download className="h-4 w-4" />
+              Download week
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="card">
         <DataTable columns={columns} data={computedRows} useTableOnMobile />
