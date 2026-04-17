@@ -95,7 +95,8 @@ export async function saveDtrAction(
     .eq("work_date", data.work_date);
   if (data.id) existingDateQuery.neq("id", data.id);
 
-  const { data: conflicting } = await existingDateQuery.maybeSingle();
+  const { data: conflicting, error: conflictingError } = await existingDateQuery.maybeSingle();
+  if (conflictingError) return { error: conflictingError.message };
   if (conflicting) {
     return {
       error: `Duplicate DTR blocked: an entry already exists for ${data.work_date}. Open the existing record instead of creating another.`,
@@ -138,7 +139,23 @@ export async function saveDtrAction(
         duration_minutes: duration,
       })
       .eq("id", entryId);
-    if (error) return { error: error.message };
+    if (error) {
+      const code = (error as any).code as string | undefined;
+      if (code === "23505") {
+        const { data: existing } = await supabase
+          .from("dtr_entries")
+          .select("id")
+          .eq("employee_id", session.user.id)
+          .eq("work_date", data.work_date)
+          .maybeSingle();
+        return {
+          error: `Duplicate DTR blocked: an entry already exists for ${data.work_date}. Open the existing record instead of creating another.`,
+          id: existing?.id,
+          field: "work_date",
+        };
+      }
+      return { error: error.message };
+    }
   } else {
     const { data: inserted, error } = await supabase
       .from("dtr_entries")
@@ -158,7 +175,24 @@ export async function saveDtrAction(
       })
       .select("id")
       .single();
-    if (error || !inserted) return { error: error?.message ?? "Insert failed" };
+    if (error) {
+      const code = (error as any).code as string | undefined;
+      if (code === "23505") {
+        const { data: existing } = await supabase
+          .from("dtr_entries")
+          .select("id")
+          .eq("employee_id", session.user.id)
+          .eq("work_date", data.work_date)
+          .maybeSingle();
+        return {
+          error: `Duplicate DTR blocked: an entry already exists for ${data.work_date}. Open the existing record instead of creating another.`,
+          id: existing?.id,
+          field: "work_date",
+        };
+      }
+      return { error: error.message };
+    }
+    if (!inserted) return { error: "Insert failed" };
     entryId = inserted.id;
   }
 

@@ -162,16 +162,50 @@ export function TimeInOutPanel() {
   }, [status?.dayEnded, status?.sessions?.length, timeInText]);
 
   const sessions = useMemo(() => {
-    return (status?.sessions ?? []).map((sessionRow) => {
-      const startMs = new Date(sessionRow.time_in).getTime();
-      const endMs = sessionRow.time_out ? new Date(sessionRow.time_out).getTime() : null;
-      const minutes = endMs ? Math.max(0, Math.floor((endMs - startMs) / 60000)) : null;
-      return {
-        ...sessionRow,
-        minutes,
-      };
-    });
-  }, [status?.sessions]);
+    const raw = status?.sessions ?? [];
+    const items: Array<{
+      id: string;
+      kind: "work" | "break";
+      workIndex?: number;
+      time_in: string;
+      time_out: string | null;
+      minutes: number | null;
+    }> = [];
+
+    const minutesBetween = (startIso: string, endIso: string | null) => {
+      const startMs = new Date(startIso).getTime();
+      const endMs = endIso ? new Date(endIso).getTime() : now;
+      return Math.max(0, Math.floor((endMs - startMs) / 60000));
+    };
+
+    let workIndex = 0;
+    for (let i = 0; i < raw.length; i += 1) {
+      const sessionRow = raw[i];
+      workIndex += 1;
+
+      items.push({
+        id: sessionRow.id,
+        kind: "work",
+        workIndex,
+        time_in: sessionRow.time_in,
+        time_out: sessionRow.time_out ?? null,
+        minutes: sessionRow.time_out ? minutesBetween(sessionRow.time_in, sessionRow.time_out) : null,
+      });
+
+      if (sessionRow.end_reason === "break" && sessionRow.time_out) {
+        const nextStart = raw[i + 1]?.time_in ?? null;
+        items.push({
+          id: `break-${sessionRow.id}`,
+          kind: "break",
+          time_in: sessionRow.time_out,
+          time_out: nextStart,
+          minutes: minutesBetween(sessionRow.time_out, nextStart),
+        });
+      }
+    }
+
+    return items;
+  }, [now, status?.sessions]);
 
   const todayTitle = status ? formatManilaLongDate(status.today) : "Today";
   const manilaNow = useMemo(() => {
@@ -376,16 +410,17 @@ export function TimeInOutPanel() {
         <CardHeader>
           <CardTitle>Today’s sessions</CardTitle>
           <p className="text-sm text-slate-500">
-            {sessions.length ? "Work sessions recorded for today." : "No sessions yet."}
+            {sessions.length ? "Work sessions and breaks recorded for today." : "No sessions yet."}
           </p>
         </CardHeader>
         <CardContent className="space-y-2">
-          {sessions.map((sessionRow, index) => (
+          {sessions.map((sessionRow) => (
             <div
               key={sessionRow.id}
               className={cn(
                 "relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm",
-                !sessionRow.time_out ? "ring-2 ring-emerald-500/30" : "",
+                sessionRow.kind === "work" && !sessionRow.time_out ? "ring-2 ring-emerald-500/30" : "",
+                sessionRow.kind === "break" && !sessionRow.time_out ? "ring-2 ring-amber-400/40" : "",
               )}
             >
               <div className="flex items-center justify-between gap-3">
@@ -393,20 +428,30 @@ export function TimeInOutPanel() {
                   <div
                     className={cn(
                       "mt-0.5 h-9 w-9 shrink-0 rounded-2xl ring-1",
-                      sessionRow.time_out
-                        ? "bg-slate-900/5 text-slate-700 ring-slate-900/10"
-                        : "bg-emerald-500/10 text-emerald-700 ring-emerald-500/20",
+                      sessionRow.kind === "break"
+                        ? "bg-amber-500/10 text-amber-700 ring-amber-500/20"
+                        : sessionRow.time_out
+                          ? "bg-slate-900/5 text-slate-700 ring-slate-900/10"
+                          : "bg-emerald-500/10 text-emerald-700 ring-emerald-500/20",
                     )}
                   >
-                    <div className="flex h-full w-full items-center justify-center text-sm font-semibold">
-                      {index + 1}
-                    </div>
+                    {sessionRow.kind === "break" ? (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <Coffee className="h-4 w-4" />
+                      </div>
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-sm font-semibold">
+                        {sessionRow.workIndex}
+                      </div>
+                    )}
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900">
-                      Session {index + 1}{" "}
-                      {!sessionRow.time_out ? (
+                      {sessionRow.kind === "break" ? "Break" : `Session ${sessionRow.workIndex}`}{" "}
+                      {sessionRow.kind === "work" && !sessionRow.time_out ? (
                         <span className="ml-2 text-xs font-medium text-emerald-700">Active</span>
+                      ) : sessionRow.kind === "break" && !sessionRow.time_out ? (
+                        <span className="ml-2 text-xs font-medium text-amber-700">Ongoing</span>
                       ) : null}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
@@ -419,8 +464,20 @@ export function TimeInOutPanel() {
                 </div>
 
                 <div className="flex shrink-0 items-center">
-                  <Badge variant={sessionRow.time_out ? "secondary" : "success"}>
-                    {sessionRow.minutes === null ? "In progress" : formatMinutes(sessionRow.minutes)}
+                  <Badge
+                    variant={
+                      sessionRow.kind === "break"
+                        ? "warning"
+                        : sessionRow.time_out
+                          ? "secondary"
+                          : "success"
+                    }
+                  >
+                    {sessionRow.kind === "break"
+                      ? formatMinutes(sessionRow.minutes ?? 0)
+                      : sessionRow.minutes === null
+                        ? "In progress"
+                        : formatMinutes(sessionRow.minutes)}
                   </Badge>
                 </div>
               </div>
