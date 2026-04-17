@@ -7,6 +7,7 @@ import { calculateDurationMinutes } from "@/utils/date";
 import { createNotification } from "@/features/notifications/service";
 import { logAudit } from "@/features/audit/log";
 import { normalizeImageLinkInput } from "./image-links";
+import { splitTaskBlocks } from "./task-blocks";
 
 export type DtrActionResponse = {
   error?: string;
@@ -57,6 +58,13 @@ export async function saveDtrAction(
     return { error: "Validation failed" };
   }
   const data = parsed.data;
+
+  if (submit) {
+    const taskBlocks = splitTaskBlocks(data.notes);
+    if (!taskBlocks.length) {
+      return { error: "Add at least one accomplished task before submitting.", field: "notes" };
+    }
+  }
 
   // Ensure a schedule exists for this week before allowing DTR creation
   const { data: scheduleForWeek } = await supabase
@@ -201,5 +209,6 @@ export async function saveDtrAction(
 
   revalidatePath("/dtr");
   if (entryId) revalidatePath(`/dtr/${entryId}`);
+  revalidatePath("/dashboard");
   return { success: submit ? "DTR submitted" : "DTR saved", id: entryId };
 }

@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { TimepickerInput } from "@/components/common/timepicker-input";
+import { parseTaskBlock, splitTaskBlocks } from "../task-blocks";
 
 type Props = {
   projects: { id: string; name: string }[];
@@ -100,14 +101,6 @@ export function DtrForm({
   const endTimeWatch = form.watch("end_time");
   const workDateWatch = form.watch("work_date");
 
-  const parseTasks = (notes?: string | null) =>
-    String(notes ?? "")
-      .trim()
-      // Store tasks as blocks separated by blank lines.
-      .split(/\n{2,}/)
-      .map((block) => block.trim())
-      .filter(Boolean);
-
   // Link fields can include a human title + a URL, e.g. "My Title: https://example.com/page".
   // We validate the first https:// URL we can find inside the field.
   const extractHttpsUrl = (value: string) => {
@@ -139,7 +132,7 @@ export function DtrForm({
     return isValidHttpsUrlWithDomain(httpsUrl);
   };
 
-  const [tasks, setTasks] = useState<string[]>(() => parseTasks(initialData?.notes));
+  const [tasks, setTasks] = useState<string[]>(() => splitTaskBlocks(initialData?.notes));
   const [taskEditorOpen, setTaskEditorOpen] = useState(false);
   const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
   const [taskAttemptedSubmit, setTaskAttemptedSubmit] = useState(false);
@@ -158,50 +151,6 @@ export function DtrForm({
     setTaskTitleLinks([""]);
     setTaskImageLinks([""]);
     setEditingTaskIndex(null);
-  };
-
-  const parseTaskBlock = (block: string) => {
-    const lines = String(block ?? "")
-      .split("\n")
-      .map((l) => l.trimEnd());
-
-    const findLineIndex = (exact: string) =>
-      lines.findIndex((line) => line.trim().toLowerCase() === exact.toLowerCase());
-
-    const sectionLine = lines.find((l) => l.trimStart().toLowerCase().startsWith("section:"));
-    const section = sectionLine ? sectionLine.split(":").slice(1).join(":").trim() : "";
-
-    const descIndex = findLineIndex("Description:");
-    const titleIndex = findLineIndex("Title: Link");
-    const imageIndex = findLineIndex("Title: Image Link");
-
-    const description =
-      descIndex !== -1 && titleIndex !== -1 && titleIndex > descIndex
-        ? lines.slice(descIndex + 1, titleIndex).join("\n").trim()
-        : "";
-
-    const titleLinks =
-      titleIndex !== -1
-        ? lines
-            .slice(titleIndex + 1, imageIndex !== -1 ? imageIndex : undefined)
-            .map((l) => l.trim())
-            .filter(Boolean)
-        : [];
-
-    const imageLinks =
-      imageIndex !== -1
-        ? lines
-            .slice(imageIndex + 1)
-            .map((l) => l.trim())
-            .filter(Boolean)
-        : [];
-
-    return {
-      section,
-      description,
-      titleLinks: titleLinks.length ? titleLinks : [""],
-      imageLinks: imageLinks.length ? imageLinks : [""],
-    };
   };
 
   const openTaskEditorForEdit = (index: number) => {
@@ -251,6 +200,7 @@ export function DtrForm({
     [startTimeWatch, endTimeWatch],
   );
   const hasProjects = selectedProjects.length > 0;
+  const hasTasks = tasks.length > 0;
   const closeProjectsDropdown = () => setProjectDropdownOpen(false);
 
   const taskEditorDisabledReason = useMemo(() => {
@@ -275,6 +225,10 @@ export function DtrForm({
   }, [taskEditorOpen, taskSection, taskDescription, taskTitleLinks, taskImageLinks]);
 
   const handleSubmit = async (submit: boolean) => {
+    if (submit && (!hasTasks || taskEditorOpen)) {
+      toast.error("Add at least one accomplished task before submitting.");
+      return;
+    }
     setSubmitting(true);
     try {
       const valid = await form.trigger();
@@ -294,6 +248,11 @@ export function DtrForm({
             type: "server",
             message: result.error,
           });
+        } else if (result.field) {
+          form.setError(result.field as keyof DtrFormValues, {
+            type: "server",
+            message: result.error,
+          });
         } else {
           form.setError("root.serverError", {
             type: "server",
@@ -307,7 +266,6 @@ export function DtrForm({
       setStatus(submit ? "submitted" : "draft");
       if (submit) {
         router.push("/dashboard");
-        router.refresh();
         return;
       }
     } finally {
@@ -842,8 +800,10 @@ export function DtrForm({
 	              {tasks.length ? (
 	                <div className="space-y-2">
 		                  {tasks.map((task, index) => {
-		                    const parsed = parseTaskBlock(task);
+		                    const parsed = parseTaskBlock(task, { ensureNonEmptyArrays: false });
 		                    const isExpanded = !readOnly && taskEditorOpen && editingTaskIndex === index;
+                        const titleLinks = parsed.titleLinks.filter(Boolean);
+                        const imageLinks = parsed.imageLinks.filter(Boolean);
 
 	                    return (
 	                      <div
@@ -890,6 +850,81 @@ export function DtrForm({
 	                            ) : null}
 	                          </div>
 	                        ) : null}
+
+                          {readOnly ? (
+                            <div className="space-y-4 border-t border-slate-200 bg-white/70 px-4 py-4">
+                              <div className="grid gap-1">
+                                <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                                  Description
+                                </p>
+                                <p className="whitespace-pre-wrap text-sm text-slate-800">
+                                  {parsed.description?.trim() ? parsed.description : "-"}
+                                </p>
+                              </div>
+
+                              <div className="grid gap-1">
+                                <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                                  Title links
+                                </p>
+                                {titleLinks.length ? (
+                                  <ul className="space-y-1 text-sm text-slate-800">
+                                    {titleLinks.map((line, linkIndex) => {
+                                      const url = extractHttpsUrl(line);
+                                      return (
+                                        <li key={`title-link-${index}-${linkIndex}`} className="break-words">
+                                          {url ? (
+                                            <a
+                                              href={url}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="text-blue-600 underline underline-offset-2 hover:text-blue-700"
+                                            >
+                                              {line}
+                                            </a>
+                                          ) : (
+                                            line
+                                          )}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-slate-700">-</p>
+                                )}
+                              </div>
+
+                              <div className="grid gap-1">
+                                <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                                  Image links
+                                </p>
+                                {imageLinks.length ? (
+                                  <ul className="space-y-1 text-sm text-slate-800">
+                                    {imageLinks.map((line, linkIndex) => {
+                                      const url = extractHttpsUrl(line);
+                                      return (
+                                        <li key={`image-link-${index}-${linkIndex}`} className="break-words">
+                                          {url ? (
+                                            <a
+                                              href={url}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="text-blue-600 underline underline-offset-2 hover:text-blue-700"
+                                            >
+                                              {line}
+                                            </a>
+                                          ) : (
+                                            line
+                                          )}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-slate-700">-</p>
+                                )}
+                              </div>
+                            </div>
+                          ) : null}
 
 		                        {isExpanded ? (
 		                          <div className="bg-white/70 px-4 py-4">
@@ -951,7 +986,7 @@ export function DtrForm({
               <Button
                 type="button"
                 onClick={() => handleSubmit(true)}
-                disabled={submitting || readOnly || !hasProjects}
+                disabled={submitting || readOnly || !hasProjects || !hasTasks || taskEditorOpen}
               >
                 {submitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -966,6 +1001,9 @@ export function DtrForm({
             <p className="pt-2 text-xs text-slate-500">
               Select at least one project before saving or submitting.
             </p>
+          ) : null}
+          {!hideActions && !readOnly && hasProjects && !hasTasks ? (
+            <p className="pt-2 text-xs text-slate-500">Add at least one accomplished task before submitting.</p>
           ) : null}
         </div>
       </div>

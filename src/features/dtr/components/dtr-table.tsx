@@ -57,9 +57,11 @@ function buildWeekGroups(rows: Row[]): WeekGroup[] {
 export function DtrTable({
   data,
   isManager,
+  detailHrefBase = "/dtr",
 }: {
   data: Row[];
   isManager: boolean;
+  detailHrefBase?: string;
 }) {
   const columns: ColumnDef<Row>[] = useMemo(
     () => [
@@ -85,7 +87,7 @@ export function DtrTable({
         cell: ({ row }) => (
           <div className="flex justify-center">
             <Button variant="ghost" size="sm" asChild>
-              <Link href={`/dtr/${row.original.id}`} prefetch={false}>
+              <Link href={`${detailHrefBase}/${row.original.id}`} prefetch={false}>
                 <Eye className="h-4 w-4" />
                 View
               </Link>

@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 import { Eye, EyeOff, KeyRound, Loader2, ShieldCheck, UsersRound } from "lucide-react";
@@ -124,7 +123,6 @@ export function PasswordManagement({
   isManager: boolean;
   employees: EmployeeOption[];
 }) {
-  const router = useRouter();
   const selfPasswordId = useId();
   const selfConfirmId = useId();
   const employeePasswordId = useId();
@@ -173,12 +171,11 @@ export function PasswordManagement({
     setSelfNotice(selfState.success);
     setSelfPassword("");
     setSelfConfirm("");
-    router.refresh();
     toast.success(selfState.success);
 
     const timer = setTimeout(() => setSelfNotice(null), 4000);
     return () => clearTimeout(timer);
-  }, [selfState?.success, router]);
+  }, [selfState?.success]);
 
   useEffect(() => {
     if (!empState?.success) return;
@@ -187,12 +184,11 @@ export function PasswordManagement({
     setEmployeeId("");
     setEmployeePassword("");
     setEmployeeConfirm("");
-    router.refresh();
     toast.success(empState.success);
 
     const timer = setTimeout(() => setEmployeeNotice(null), 5000);
     return () => clearTimeout(timer);
-  }, [empState?.success, router]);
+  }, [empState?.success]);
 
   useEffect(() => {
     if (!selfState?.error) return;

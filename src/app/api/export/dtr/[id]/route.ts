@@ -5,7 +5,7 @@ import { PDFDocument as LibPdfDocument, StandardFonts, rgb } from "pdf-lib";
 import PDFDocument from "pdfkit";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { formatMinutes } from "@/utils/date";
-import { parseImageLinks } from "@/features/dtr/image-links";
+import { parseTaskBlock, splitTaskBlocks, type ParsedTaskBlock } from "@/features/dtr/task-blocks";
 
 export const runtime = "nodejs";
 
@@ -135,10 +135,15 @@ const CONTENT_BOTTOM = PAGE_HEIGHT - FOOTER_RESERVE;
 const SECTION_GAP = 18;
 const SECTION_INNER_WIDTH = CONTENT_WIDTH - 40;
 
-type ImageLinkLine = {
+type TaskCardLine = {
   text: string;
+  font: string;
+  fontSize: number;
   color: string;
+  height: number;
+  lineGap: number;
   link?: string;
+  underline?: boolean;
 };
 
 function drawOverflowPageHeader(
@@ -197,6 +202,26 @@ function wrapTextByWidth(
   }
 
   return lines.length ? lines : [""];
+}
+
+function extractHttpsUrl(value: string) {
+  const match = value.match(/https:\/\/\S+/i);
+  if (!match) return null;
+  return match[0].replace(/[),.;]+$/, "");
+}
+
+async function embedFooterFonts(pdf: LibPdfDocument) {
+  try {
+    const regularBytes = fs.readFileSync(FONT_REGULAR_PATH);
+    const boldBytes = fs.readFileSync(FONT_BOLD_PATH);
+    const regular = await pdf.embedFont(regularBytes);
+    const bold = await pdf.embedFont(boldBytes);
+    return { regular, bold };
+  } catch {
+    const regular = await pdf.embedFont(StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    return { regular, bold };
+  }
 }
 
 function drawPaginatedTextSection(params: {
@@ -260,91 +285,172 @@ function drawPaginatedTextSection(params: {
   return currentY;
 }
 
-function buildImageLinkLines(
-  doc: PDFKit.PDFDocument,
-  imageLinksRaw: string | null,
-) {
-  const parsed = parseImageLinks(imageLinksRaw);
-  if (!parsed.length) {
-    const fallback = imageLinksRaw?.trim() || "No image link attached.";
-    return {
-      lines: wrapTextByWidth(doc, fallback, SECTION_INNER_WIDTH, FONT_REGULAR_NAME, 10).map((text) => ({
-        text: text || " ",
-        color: COLORS.muted,
-      })),
-    };
-  }
+function buildTaskCardLines(doc: PDFKit.PDFDocument, task: ParsedTaskBlock) {
+  const lines: TaskCardLine[] = [];
 
-  const lines: ImageLinkLine[] = [];
-  parsed.forEach((item, index) => {
-    const lineText = `${index + 1}. ${item.title ? `${item.title}: ` : ""}${item.url}`;
-    const wrapped = wrapTextByWidth(doc, lineText, SECTION_INNER_WIDTH, FONT_REGULAR_NAME, 9);
+  const pushLabel = (label: string) => {
+    lines.push({
+      text: label,
+      font: FONT_BOLD_NAME,
+      fontSize: 8,
+      color: COLORS.muted,
+      height: 12,
+      lineGap: 2,
+    });
+  };
+
+  const pushBodyText = (text: string, options?: { fontSize?: number; color?: string }) => {
+    const fontSize = options?.fontSize ?? 10;
+    const color = options?.color ?? COLORS.ink;
+    const wrapped = wrapTextByWidth(doc, text || "-", SECTION_INNER_WIDTH, FONT_REGULAR_NAME, fontSize);
+    const height = fontSize <= 9 ? 13 : 14;
+    const lineGap = fontSize <= 9 ? 2 : 4;
     wrapped.forEach((part) => {
       lines.push({
         text: part || " ",
-        color: "#2563EB",
-        link: item.url,
+        font: FONT_REGULAR_NAME,
+        fontSize,
+        color,
+        height,
+        lineGap,
       });
     });
+  };
+
+  const pushLinkLines = (rawLines: string[]) => {
+    const entries = rawLines.filter(Boolean);
+    if (!entries.length) {
+      pushBodyText("-", { color: COLORS.ink });
+      return;
+    }
+
+    entries.forEach((raw, index) => {
+      const label = `${index + 1}. ${raw}`;
+      const url = extractHttpsUrl(raw);
+      const wrapped = wrapTextByWidth(doc, label, SECTION_INNER_WIDTH, FONT_REGULAR_NAME, 9);
+      wrapped.forEach((part) => {
+        lines.push({
+          text: part || " ",
+          font: FONT_REGULAR_NAME,
+          fontSize: 9,
+          color: "#2563EB",
+          height: 13,
+          lineGap: 2,
+          link: url ?? undefined,
+          underline: Boolean(url),
+        });
+      });
+    });
+  };
+
+  pushLabel("DESCRIPTION");
+  pushBodyText(task.description?.trim() ? task.description : "-");
+  lines.push({
+    text: " ",
+    font: FONT_REGULAR_NAME,
+    fontSize: 9,
+    color: COLORS.ink,
+    height: 10,
+    lineGap: 0,
   });
-  return { lines };
+
+  pushLabel("TITLE LINKS");
+  pushLinkLines(task.titleLinks);
+  lines.push({
+    text: " ",
+    font: FONT_REGULAR_NAME,
+    fontSize: 9,
+    color: COLORS.ink,
+    height: 10,
+    lineGap: 0,
+  });
+
+  pushLabel("IMAGE LINKS");
+  pushLinkLines(task.imageLinks);
+
+  return lines;
 }
 
-function drawPaginatedImageLinksSection(params: {
+function drawPaginatedTaskCards(params: {
   doc: PDFKit.PDFDocument;
-  lines: ImageLinkLine[];
+  tasks: ParsedTaskBlock[];
   currentY: number;
   onNewPage: () => void;
 }) {
-  const { doc, lines, onNewPage } = params;
+  const { doc, tasks, onNewPage } = params;
   let currentY = params.currentY;
-  let pending = [...lines];
-  const lineGap = 2;
-  const lineHeight = 13;
-  let continuation = false;
 
-  while (pending.length) {
-    const headerHeight = 44;
-    const minBodyHeight = lineHeight;
-    if (currentY + headerHeight + minBodyHeight + 14 > CONTENT_BOTTOM) {
-      onNewPage();
-      currentY = 112;
-    }
+  const headerHeight = 44;
+  const paddingBottom = 14;
 
-    const availableBody = CONTENT_BOTTOM - currentY - headerHeight - 14;
-    const linesPerPage = Math.max(1, Math.floor((availableBody + lineGap) / lineHeight));
-    const chunk = pending.slice(0, linesPerPage);
-    pending = pending.slice(linesPerPage);
+  for (let index = 0; index < tasks.length; index++) {
+    const task = tasks[index];
+    const sectionName = task.section?.trim() ? task.section.trim() : "Untitled task";
+    const baseTitle = `Accomplished task ${index + 1}: ${sectionName}`;
+    const allLines = buildTaskCardLines(doc, task);
 
-    const bodyHeight = Math.max(lineHeight, chunk.length * lineHeight - lineGap);
-    const sectionHeight = headerHeight + bodyHeight + 14;
+    let pending = [...allLines];
+    let continuation = false;
 
-    doc
-      .roundedRect(PAGE_MARGIN, currentY, CONTENT_WIDTH, sectionHeight, 18)
-      .fillAndStroke(COLORS.panel, COLORS.panelBorder);
-    doc
-      .font(FONT_BOLD_NAME)
-      .fontSize(11)
-      .fillColor(COLORS.ink)
-      .text(continuation ? "Image links (continued)" : "Image links", PAGE_MARGIN + 20, currentY + 20);
+    while (pending.length) {
+      const minBodyHeight = pending[0]?.height ?? 14;
+      if (currentY + headerHeight + minBodyHeight + paddingBottom > CONTENT_BOTTOM) {
+        onNewPage();
+        currentY = 112;
+      }
 
-    let textY = currentY + 44;
-    chunk.forEach((line) => {
+      const availableBody = CONTENT_BOTTOM - currentY - headerHeight - paddingBottom;
+      let chunkHeight = 0;
+      let take = 0;
+      while (take < pending.length) {
+        const next = pending[take];
+        if (take > 0 && chunkHeight + next.height > availableBody) break;
+        if (take === 0 && next.height > availableBody) {
+          take = 1;
+          chunkHeight = next.height;
+          break;
+        }
+        chunkHeight += next.height;
+        take++;
+      }
+
+      const chunk = pending.slice(0, take);
+      pending = pending.slice(take);
+
+      const sectionHeight = headerHeight + Math.max(14, chunkHeight) + paddingBottom;
+
       doc
-        .font(FONT_REGULAR_NAME)
-        .fontSize(9)
-        .fillColor(line.color)
-        .text(line.text, PAGE_MARGIN + 20, textY, {
-          width: SECTION_INNER_WIDTH,
-          lineGap,
-          link: line.link,
-          underline: Boolean(line.link),
-        });
-      textY += lineHeight;
-    });
+        .roundedRect(PAGE_MARGIN, currentY, CONTENT_WIDTH, sectionHeight, 18)
+        .fillAndStroke("white", COLORS.line);
+      doc
+        .font(FONT_BOLD_NAME)
+        .fontSize(11)
+        .fillColor(COLORS.ink)
+        .text(
+          continuation ? `${baseTitle} (continued)` : baseTitle,
+          PAGE_MARGIN + 20,
+          currentY + 20,
+          { width: SECTION_INNER_WIDTH },
+        );
 
-    currentY += sectionHeight + SECTION_GAP;
-    continuation = true;
+      let textY = currentY + 44;
+      chunk.forEach((line) => {
+        doc
+          .font(line.font)
+          .fontSize(line.fontSize)
+          .fillColor(line.color)
+          .text(line.text, PAGE_MARGIN + 20, textY, {
+            width: SECTION_INNER_WIDTH,
+            lineGap: line.lineGap,
+            link: line.link,
+            underline: Boolean(line.underline),
+          });
+        textY += line.height;
+      });
+
+      currentY += sectionHeight + SECTION_GAP;
+      continuation = true;
+    }
   }
 
   return currentY;
@@ -461,39 +567,53 @@ export async function GET(
     drawSummaryChip(doc, PAGE_MARGIN + 260, summaryChipsY, "DURATION", formatMinutes(entry.duration_minutes), 122);
 
     const notesY = workSummaryY + summaryHeight + 20;
-    const notesText = entry.notes?.trim() || "No notes provided.";
-    const notesLines = wrapTextByWidth(doc, notesText, SECTION_INNER_WIDTH, FONT_REGULAR_NAME, 10);
-    let currentY = drawPaginatedTextSection({
-      doc,
-      title: "Notes",
-      lines: notesLines,
-      currentY: notesY,
-      lineGap: 6,
-      lineHeight: 16,
-      textFontSize: 10,
-      textColor: COLORS.ink,
-      onNewPage: () =>
-        drawOverflowPageHeader(
-          doc,
-          entry.id,
-          entry.work_date,
-          employeeProfile?.full_name ?? "Employee",
-        ),
-    });
+    const parsedTasks = splitTaskBlocks(entry.notes).map((block) =>
+      parseTaskBlock(block, { ensureNonEmptyArrays: false }),
+    );
+    const hasTasks = parsedTasks.some(
+      (task) =>
+        Boolean(task.section?.trim()) ||
+        Boolean(task.description?.trim()) ||
+        task.titleLinks.length > 0 ||
+        task.imageLinks.length > 0,
+    );
 
-    const imageLinkLines = buildImageLinkLines(doc, entry.image_link);
-    drawPaginatedImageLinksSection({
-      doc,
-      lines: imageLinkLines.lines,
-      currentY,
-      onNewPage: () =>
-        drawOverflowPageHeader(
+    let currentY = hasTasks
+      ? drawPaginatedTaskCards({
           doc,
-          entry.id,
-          entry.work_date,
-          employeeProfile?.full_name ?? "Employee",
-        ),
-    });
+          tasks: parsedTasks,
+          currentY: notesY,
+          onNewPage: () =>
+            drawOverflowPageHeader(
+              doc,
+              entry.id,
+              entry.work_date,
+              employeeProfile?.full_name ?? "Employee",
+            ),
+        })
+      : drawPaginatedTextSection({
+          doc,
+          title: "Notes",
+          lines: wrapTextByWidth(
+            doc,
+            entry.notes?.trim() || "No notes provided.",
+            SECTION_INNER_WIDTH,
+            FONT_REGULAR_NAME,
+            10,
+          ),
+          currentY: notesY,
+          lineGap: 6,
+          lineHeight: 16,
+          textFontSize: 10,
+          textColor: COLORS.ink,
+          onNewPage: () =>
+            drawOverflowPageHeader(
+              doc,
+              entry.id,
+              entry.work_date,
+              employeeProfile?.full_name ?? "Employee",
+            ),
+        });
 
     doc.end();
 
@@ -503,26 +623,25 @@ export async function GET(
     const footerText = "Generated from the manager export view for internal record review,";
     const managerName = (profile.full_name ?? "").replace(/\s+/g, " ").trim();
     const managerMark = managerName ? `Manager ${managerName}` : "Manager";
-    const helvetica = await normalizedPdf.embedFont(StandardFonts.Helvetica);
-    const helveticaBold = await normalizedPdf.embedFont(StandardFonts.HelveticaBold);
+    const footerFonts = await embedFooterFonts(normalizedPdf);
     const footerFontSize = 8;
     const managerFontSize = 8;
-    const footerTextWidth = helvetica.widthOfTextAtSize(footerText, footerFontSize);
-    const managerTextWidth = helveticaBold.widthOfTextAtSize(managerMark, managerFontSize);
+    const footerTextWidth = footerFonts.regular.widthOfTextAtSize(footerText, footerFontSize);
+    const managerTextWidth = footerFonts.bold.widthOfTextAtSize(managerMark, managerFontSize);
 
     normalizedPdf.getPages().forEach((page) => {
       page.drawText(footerText, {
         x: PAGE_MARGIN + (CONTENT_WIDTH - footerTextWidth) / 2,
         y: 24,
         size: footerFontSize,
-        font: helvetica,
+        font: footerFonts.regular,
         color: rgb(100 / 255, 116 / 255, 139 / 255),
       });
       page.drawText(managerMark, {
         x: PAGE_WIDTH - PAGE_MARGIN - managerTextWidth,
         y: 18,
         size: managerFontSize,
-        font: helveticaBold,
+        font: footerFonts.bold,
         color: rgb(148 / 255, 163 / 255, 184 / 255),
         opacity: 0.55,
       });

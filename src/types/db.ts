@@ -95,3 +95,13 @@ export interface AuditLog {
   created_at: string;
   actor?: Profile | null;
 }
+
+export interface TimeLog {
+  id: string;
+  employee_id: string;
+  work_date: string;
+  time_in: string;
+  time_out: string | null;
+  created_at: string;
+  updated_at: string;
+}

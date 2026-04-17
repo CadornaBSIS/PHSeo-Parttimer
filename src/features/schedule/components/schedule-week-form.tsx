@@ -17,7 +17,7 @@ import { StatusBadge } from "@/components/common/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { ensureMonday } from "@/utils/date";
 import { useRouter } from "next/navigation";
-import { Role, ScheduleStatus } from "@/types/db";
+import { Role, ScheduleApprovalStatus, ScheduleStatus } from "@/types/db";
 
 type Props = {
   initialData?: Partial<ScheduleFormValues> & {
@@ -27,12 +27,17 @@ type Props = {
   viewerRole?: Role;
   scheduleId?: string;
   reviewLocked?: boolean;
+  approvalStatusOnSave?: ScheduleApprovalStatus;
+  defaultApprovalStatus?: ScheduleApprovalStatus;
 };
 
 const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 type WeekDay = ScheduleFormValues["days"][number];
 
-function buildWeekDays(weekStart: string): WeekDay[] {
+function buildWeekDays(
+  weekStart: string,
+  defaultApprovalStatus: ScheduleApprovalStatus,
+): WeekDay[] {
   const start = parseISO(weekStart);
   return dayLabels.map((_, idx) => {
     const date = addDays(start, idx);
@@ -40,7 +45,7 @@ function buildWeekDays(weekStart: string): WeekDay[] {
       day_of_week: idx + 1,
       work_date: format(date, "yyyy-MM-dd"),
       work_status: "working" as WeekDay["work_status"],
-      approval_status: "for_approval" as WeekDay["approval_status"],
+      approval_status: defaultApprovalStatus as WeekDay["approval_status"],
       start_time: "09:00",
       end_time: "18:00",
       notes: "",
@@ -54,6 +59,8 @@ export function ScheduleWeekForm({
   viewerRole = "employee",
   scheduleId,
   reviewLocked = false,
+  approvalStatusOnSave = "for_approval",
+  defaultApprovalStatus = "for_approval",
 }: Props) {
   const defaultWeekStart =
     initialData?.week_start ??
@@ -68,7 +75,7 @@ export function ScheduleWeekForm({
     initialData?.days
       ?.map((day) => ({
         ...day,
-        approval_status: day.approval_status ?? "for_approval",
+        approval_status: day.approval_status ?? defaultApprovalStatus,
       }))
       .sort((a, b) => a.day_of_week - b.day_of_week);
 
@@ -80,7 +87,7 @@ export function ScheduleWeekForm({
       week_end:
         initialData?.week_end ??
         format(addDays(parseISO(defaultWeekStart), 6), "yyyy-MM-dd"),
-      days: sortedInitialDays ?? buildWeekDays(defaultWeekStart),
+      days: sortedInitialDays ?? buildWeekDays(defaultWeekStart, defaultApprovalStatus),
     },
   });
 
@@ -103,9 +110,9 @@ export function ScheduleWeekForm({
 
     const weekEnd = format(addDays(parseISO(watchWeekStart), 6), "yyyy-MM-dd");
     form.setValue("week_end", weekEnd);
-    const newDays = buildWeekDays(watchWeekStart);
+    const newDays = buildWeekDays(watchWeekStart, defaultApprovalStatus);
     form.setValue("days", newDays);
-  }, [watchWeekStart, form, initialized, initialData?.days]);
+  }, [watchWeekStart, form, initialized, initialData?.days, defaultApprovalStatus]);
 
   // When the user switches to a different week, treat it as a fresh draft
   useEffect(() => {
@@ -162,15 +169,15 @@ export function ScheduleWeekForm({
         toast.error("Please fix validation errors.");
         return;
       }
-      const values = form.getValues();
-      const normalizedValues: ScheduleFormValues = {
-        ...values,
-        days: values.days.map((day) => ({
-          ...day,
-          approval_status: "for_approval",
-        })),
-      };
-      const result = await saveScheduleAction(normalizedValues, submit);
+       const values = form.getValues();
+       const normalizedValues: ScheduleFormValues = {
+         ...values,
+         days: values.days.map((day) => ({
+           ...day,
+           approval_status: approvalStatusOnSave,
+         })),
+       };
+       const result = await saveScheduleAction(normalizedValues, submit);
       if (result.error) {
         toast.error(result.error);
         return;
@@ -181,7 +188,6 @@ export function ScheduleWeekForm({
         router.push("/dashboard");
         return;
       }
-      router.refresh();
     } finally {
       setSubmitting(false);
     }

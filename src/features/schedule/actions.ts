@@ -52,6 +52,12 @@ export async function saveScheduleAction(
     return { error: "Unauthenticated" };
   }
 
+  const { data: actorProfile } = await supabase
+    .from("profiles")
+    .select("role, full_name")
+    .eq("id", session.user.id)
+    .maybeSingle();
+
   const parsed = scheduleFormSchema.safeParse(payload);
   if (!parsed.success) {
     return { error: "Validation failed" };
@@ -60,12 +66,9 @@ export async function saveScheduleAction(
   const data = parsed.data;
   const weekStart = data.week_start;
   const weekEnd = data.week_end;
-  const { data: employeeProfile } = await supabase
-    .from("profiles")
-    .select("full_name")
-    .eq("id", session.user.id)
-    .maybeSingle();
-  const employeeName = employeeProfile?.full_name ?? "Employee";
+  const employeeName = actorProfile?.full_name ?? "Employee";
+  const approvalStatusOnSave: ScheduleApprovalStatus =
+    actorProfile?.role === "manager" ? "approved" : "for_approval";
 
   const { data: existing } = await supabase
     .from("schedules")
@@ -113,7 +116,7 @@ export async function saveScheduleAction(
 
   const dayPayload = data.days.map((day) => ({
     ...day,
-    approval_status: day.approval_status ?? "for_approval",
+    approval_status: approvalStatusOnSave,
     schedule_id: scheduleId,
   }));
 

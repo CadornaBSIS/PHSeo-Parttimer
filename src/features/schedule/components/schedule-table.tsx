@@ -27,12 +27,14 @@ export function ScheduleTable({
   statusFilter,
   employeeId,
   realtime = true,
+  detailHrefBase = "/schedule",
 }: {
   data: Row[];
   isManager: boolean;
   statusFilter?: string;
   employeeId?: string;
   realtime?: boolean;
+  detailHrefBase?: string;
 }) {
   const [rows, setRows] = useState<Row[]>(data);
 
@@ -162,15 +164,15 @@ export function ScheduleTable({
       id: "actions",
       header: "Action",
       meta: { align: "center" },
-      cell: ({ row }) => (
-        <div className="flex justify-center">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={`/schedule/${row.original.id}`} prefetch={false}>
-              <Eye className="h-4 w-4" />
-              View
-            </Link>
-          </Button>
-        </div>
+        cell: ({ row }) => (
+          <div className="flex justify-center">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={`${detailHrefBase}/${row.original.id}`} prefetch={false}>
+                <Eye className="h-4 w-4" />
+                View
+              </Link>
+            </Button>
+          </div>
       ),
     },
   ];

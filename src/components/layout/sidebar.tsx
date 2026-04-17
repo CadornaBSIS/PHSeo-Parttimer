@@ -7,12 +7,14 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   CalendarClock,
   CircleUserRound,
+  ClipboardList,
   Clock3,
   FileText,
   LayoutDashboard,
   LogOut,
   Settings,
   ShieldCheck,
+  Timer,
   User,
   Users,
 } from "lucide-react";
@@ -37,6 +39,12 @@ const navItems = [
     roles: ["manager", "employee"],
   },
   {
+    label: "My Records",
+    href: "/manager-records",
+    icon: ClipboardList,
+    roles: ["manager"],
+  },
+  {
     label: "Schedule",
     href: "/schedule",
     icon: CalendarClock,
@@ -46,6 +54,12 @@ const navItems = [
     label: "DTR",
     href: "/dtr",
     icon: Clock3,
+    roles: ["manager", "employee"],
+  },
+  {
+    label: "Time Record",
+    href: "/time",
+    icon: Timer,
     roles: ["manager", "employee"],
   },
   {
@@ -73,7 +87,7 @@ export function AppSidebar({ profile, role, open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const prefetchRoutes = useMemo(() => {
-    const baseRoutes = ["/dashboard", "/schedule", "/dtr", "/settings", "/profile"];
+    const baseRoutes = ["/dashboard", "/schedule", "/dtr", "/time", "/settings", "/profile"];
     const managerRoutes = ["/employees", "/reports"];
     const listFilters = [
       "/schedule?status=draft",
@@ -83,7 +97,14 @@ export function AppSidebar({ profile, role, open, onClose }: SidebarProps) {
     ];
 
     if (role === "manager") {
-      return [...baseRoutes, ...managerRoutes, ...listFilters];
+      return [
+        ...baseRoutes,
+        "/manager-records",
+        "/manager-records/schedule/new",
+        "/manager-records/dtr/new",
+        ...managerRoutes,
+        ...listFilters,
+      ];
     }
 
     return [...baseRoutes, "/schedule/new", "/dtr/new", ...listFilters];
