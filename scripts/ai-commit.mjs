@@ -13,6 +13,8 @@ const DEFAULT_MODEL =
   PROVIDER === "gemini"
     ? process.env.AI_COMMIT_MODEL || process.env.GEMINI_COMMIT_MODEL || "gemini-2.5-flash"
     : process.env.AI_COMMIT_MODEL || process.env.OPENAI_COMMIT_MODEL || "gpt-5.3-codex";
+const RETRYABLE_STATUS_CODES = new Set([429, 503]);
+const RETRYABLE_STATUS_TEXT = new Set(["RESOURCE_EXHAUSTED", "UNAVAILABLE"]);
 const EMOJI_BY_TYPE = {
   feat: "✨",
   fix: "🐛",
@@ -41,6 +43,57 @@ function fail(message) {
 
 function truncate(value, maxLength) {
   return value.length > maxLength ? `${value.slice(0, maxLength - 3)}...` : value;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getErrorDetail(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function parseRetryDelayMs(detail) {
+  const match =
+    detail.match(/Please retry in\s+([\d.]+)s/i) ||
+    detail.match(/"retryDelay":"(\d+)s"/i);
+  if (!match) return null;
+
+  const seconds = Number.parseFloat(match[1]);
+  return Number.isFinite(seconds) ? Math.ceil(seconds * 1000) : null;
+}
+
+function isRetryableProviderError(error) {
+  const detail = getErrorDetail(error);
+  return (
+    [...RETRYABLE_STATUS_CODES].some((code) => detail.includes(`"code":${code}`)) ||
+    [...RETRYABLE_STATUS_TEXT].some((status) => detail.includes(`"status":"${status}"`))
+  );
+}
+
+async function withRetries(task, label, maxAttempts = 4) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+
+      if (!isRetryableProviderError(error) || attempt === maxAttempts) {
+        break;
+      }
+
+      const detail = getErrorDetail(error);
+      const retryDelayMs = parseRetryDelayMs(detail) ?? attempt * 5000;
+      console.warn(
+        `${label} attempt ${attempt}/${maxAttempts} failed with a temporary provider error. Retrying in ${Math.ceil(retryDelayMs / 1000)}s...`,
+      );
+      await sleep(retryDelayMs);
+    }
+  }
+
+  throw lastError;
 }
 
 function normalizeCommitMessage(message) {
@@ -106,14 +159,18 @@ async function generateCommitMessage(diff, files, branch) {
     }
 
     const client = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    const response = await client.models.generateContent({
-      model: DEFAULT_MODEL,
-      contents: prompt,
-      config: {
-        systemInstruction:
-          "You write terse, accurate git commit subjects and return only the subject line.",
-      },
-    });
+    const response = await withRetries(
+      () =>
+        client.models.generateContent({
+          model: DEFAULT_MODEL,
+          contents: prompt,
+          config: {
+            systemInstruction:
+              "You write terse, accurate git commit subjects and return only the subject line.",
+          },
+        }),
+      `Gemini ${DEFAULT_MODEL}`,
+    );
 
     message = response.text?.trim() || "";
   } else {
@@ -122,10 +179,14 @@ async function generateCommitMessage(diff, files, branch) {
     }
 
     const client = new OpenAI({ apiKey: OPENAI_API_KEY });
-    const response = await client.responses.create({
-      model: DEFAULT_MODEL,
-      input: prompt,
-    });
+    const response = await withRetries(
+      () =>
+        client.responses.create({
+          model: DEFAULT_MODEL,
+          input: prompt,
+        }),
+      `OpenAI ${DEFAULT_MODEL}`,
+    );
 
     message = response.output_text?.trim() || "";
   }
@@ -175,6 +236,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  const detail = error instanceof Error ? error.message : String(error);
+  const detail = getErrorDetail(error);
   fail(`ai commit failed: ${detail}`);
 });
