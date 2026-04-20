@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
+import { TimeRecordHistory } from "@/features/timeclock/components/time-record-history";
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
@@ -86,6 +87,15 @@ export default async function ManagerEmployeeTimeLogsPage({
         description={`Work date: ${effectiveDate}`}
         userId={profile.id}
       />
+
+      <div className="card">
+        <TimeRecordHistory
+          employeeId={employeeId}
+          detailHrefBase={`/time/team/${employeeId}`}
+          title="Time record history"
+          description="Browse weekly time records, then open a specific day for details."
+        />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

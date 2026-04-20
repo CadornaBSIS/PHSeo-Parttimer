@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { format, parseISO, subDays } from "date-fns";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
@@ -41,7 +42,9 @@ function manilaTimeHHmm(date = new Date()) {
 
 export type TimeClockStatus = {
   today: string;
+  hasScheduleForWeek: boolean;
   hasScheduleForToday: boolean;
+  todayWorkStatus: "working" | "day_off" | "leave" | "holiday" | "requested" | null;
   scheduleMessage?: string;
   hasDtrForToday: boolean;
   breakUsed: boolean;
@@ -65,6 +68,247 @@ export type ManagerTimeRecordRow = {
   worked_minutes_completed: number;
   dtr_text: string | null;
 };
+
+export type TimeRecordHistoryRow = {
+  work_date: string;
+  attendance: "working" | "on_break" | "timed_out";
+  first_time_in: string | null;
+  last_time_out: string | null;
+  open_time_in: string | null;
+  sessions: number;
+  worked_minutes_completed: number;
+  dtr_id: string | null;
+  dtr_text: string | null;
+};
+
+export type TeamTimeRecordHistoryRow = TimeRecordHistoryRow & {
+  employee_id: string;
+  employee_name: string;
+};
+
+export async function getTimeRecordHistoryAction(options?: {
+  employeeId?: string;
+  limitDays?: number;
+}): Promise<ActionResult<TimeRecordHistoryRow[]>> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return { ok: false, error: "Unauthenticated" };
+
+  const targetEmployeeId = options?.employeeId ?? session.user.id;
+  if (targetEmployeeId !== session.user.id) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", session.user.id)
+      .maybeSingle();
+    if (profile?.role !== "manager") return { ok: false, error: "Forbidden" };
+  }
+
+  const manilaToday = manilaDateParts();
+  const limitDays = Math.min(Math.max(7, options?.limitDays ?? 90), 365);
+  const cutoff = format(subDays(parseISO(manilaToday), limitDays), "yyyy-MM-dd");
+
+  const { data: sessions, error } = await supabase
+    .from("time_log_sessions")
+    .select("work_date, time_in, time_out, end_reason")
+    .eq("employee_id", targetEmployeeId)
+    .gte("work_date", cutoff)
+    .order("work_date", { ascending: false })
+    .order("time_in", { ascending: true });
+  if (error) return { ok: false, error: error.message };
+
+  const sessionsByDate = (sessions ?? []).reduce<
+    Record<string, Array<{ time_in: string; time_out: string | null; end_reason: string | null }>>
+  >((acc, row) => {
+    const date = row.work_date;
+    if (!date) return acc;
+    acc[date] ??= [];
+    acc[date]!.push({
+      time_in: row.time_in,
+      time_out: row.time_out ?? null,
+      end_reason: row.end_reason ?? null,
+    });
+    return acc;
+  }, {});
+
+  const workDates = Object.keys(sessionsByDate);
+  if (!workDates.length) return { ok: true, data: [] };
+
+  const { data: dtrs } = await supabase
+    .from("dtr_entries")
+    .select("id, work_date, notes")
+    .eq("employee_id", targetEmployeeId)
+    .in("work_date", workDates);
+
+  const dtrByDate = (dtrs ?? []).reduce<Record<string, { id: string; text: string }>>((acc, row) => {
+    if (!row.work_date) return acc;
+    acc[row.work_date] = { id: row.id, text: (row.notes ?? "").trim() };
+    return acc;
+  }, {});
+
+  const rows: TimeRecordHistoryRow[] = workDates
+    .sort((a, b) => b.localeCompare(a))
+    .map((work_date) => {
+      const list = sessionsByDate[work_date] ?? [];
+      const first = list[0] ?? null;
+      const last = list.length ? list[list.length - 1] : null;
+      const open = list.find((s) => !s.time_out) ?? null;
+      const dayEnded = list.some((s) => s.end_reason === "day_end");
+
+      const workedMinutesCompleted = list.reduce((acc, s) => {
+        if (!s.time_out) return acc;
+        const start = new Date(s.time_in).getTime();
+        const end = new Date(s.time_out).getTime();
+        return acc + Math.max(0, Math.round((end - start) / 60000));
+      }, 0);
+
+      const attendance: TimeRecordHistoryRow["attendance"] = open
+        ? "working"
+        : dayEnded
+          ? "timed_out"
+          : last?.end_reason === "break"
+            ? "on_break"
+            : "timed_out";
+
+      return {
+        work_date,
+        attendance,
+        first_time_in: first?.time_in ?? null,
+        last_time_out: last?.time_out ?? null,
+        open_time_in: open?.time_in ?? null,
+        sessions: list.length,
+        worked_minutes_completed: workedMinutesCompleted,
+        dtr_id: dtrByDate[work_date]?.id ?? null,
+        dtr_text: dtrByDate[work_date]?.text ?? null,
+      };
+    });
+
+  return { ok: true, data: rows };
+}
+
+export async function getTeamTimeRecordHistoryAction(options?: {
+  limitDays?: number;
+}): Promise<ActionResult<TeamTimeRecordHistoryRow[]>> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return { ok: false, error: "Unauthenticated" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", session.user.id)
+    .maybeSingle();
+  if (profile?.role !== "manager") return { ok: false, error: "Forbidden" };
+
+  const limitDays = Math.min(Math.max(7, options?.limitDays ?? 90), 365);
+  const manilaToday = manilaDateParts();
+  const cutoff = format(subDays(parseISO(manilaToday), limitDays), "yyyy-MM-dd");
+
+  const { data: employees, error: empError } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .in("role", ["employee", "manager"])
+    .eq("status", "active")
+    .order("full_name", { ascending: true });
+  if (empError) return { ok: false, error: empError.message };
+
+  const employeeIds = (employees ?? []).map((e) => e.id);
+  if (!employeeIds.length) return { ok: true, data: [] };
+
+  const { data: sessions, error: sessionError } = await supabase
+    .from("time_log_sessions")
+    .select("employee_id, work_date, time_in, time_out, end_reason")
+    .gte("work_date", cutoff)
+    .in("employee_id", employeeIds)
+    .order("work_date", { ascending: false })
+    .order("time_in", { ascending: true });
+  if (sessionError) return { ok: false, error: sessionError.message };
+
+  const { data: dtrs } = await supabase
+    .from("dtr_entries")
+    .select("id, employee_id, work_date, notes")
+    .gte("work_date", cutoff)
+    .in("employee_id", employeeIds);
+
+  const dtrByEmpDate = (dtrs ?? []).reduce<Record<string, Record<string, { id: string; text: string }>>>((acc, row) => {
+    if (!row.employee_id || !row.work_date) return acc;
+    acc[row.employee_id] ??= {};
+    acc[row.employee_id]![row.work_date] = { id: row.id, text: (row.notes ?? "").trim() };
+    return acc;
+  }, {});
+
+  const sessionsByEmpDate = (sessions ?? []).reduce<
+    Record<string, Record<string, Array<{ time_in: string; time_out: string | null; end_reason: string | null }>>>
+  >((acc, row) => {
+    acc[row.employee_id] ??= {};
+    acc[row.employee_id]![row.work_date] ??= [];
+    acc[row.employee_id]![row.work_date]!.push({
+      time_in: row.time_in,
+      time_out: row.time_out ?? null,
+      end_reason: row.end_reason ?? null,
+    });
+    return acc;
+  }, {});
+
+  const nameByEmployee = (employees ?? []).reduce<Record<string, string>>((acc, row) => {
+    acc[row.id] = row.full_name ?? "Employee";
+    return acc;
+  }, {});
+
+  const out: TeamTimeRecordHistoryRow[] = [];
+
+  for (const employeeId of Object.keys(sessionsByEmpDate)) {
+    const byDate = sessionsByEmpDate[employeeId] ?? {};
+    const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+    for (const work_date of dates) {
+      const list = byDate[work_date] ?? [];
+      const first = list[0] ?? null;
+      const last = list.length ? list[list.length - 1] : null;
+      const open = list.find((s) => !s.time_out) ?? null;
+      const dayEnded = list.some((s) => s.end_reason === "day_end");
+      const workedMinutesCompleted = list.reduce((acc, s) => {
+        if (!s.time_out) return acc;
+        const start = new Date(s.time_in).getTime();
+        const end = new Date(s.time_out).getTime();
+        return acc + Math.max(0, Math.round((end - start) / 60000));
+      }, 0);
+
+      const attendance: TimeRecordHistoryRow["attendance"] = open
+        ? "working"
+        : dayEnded
+          ? "timed_out"
+          : last?.end_reason === "break"
+            ? "on_break"
+            : "timed_out";
+
+      out.push({
+        employee_id: employeeId,
+        employee_name: nameByEmployee[employeeId] ?? "Employee",
+        work_date,
+        attendance,
+        first_time_in: first?.time_in ?? null,
+        last_time_out: last?.time_out ?? null,
+        open_time_in: open?.time_in ?? null,
+        sessions: list.length,
+        worked_minutes_completed: workedMinutesCompleted,
+        dtr_id: dtrByEmpDate[employeeId]?.[work_date]?.id ?? null,
+        dtr_text: dtrByEmpDate[employeeId]?.[work_date]?.text ?? null,
+      });
+    }
+  }
+
+  out.sort((a, b) => {
+    const nameCmp = a.employee_name.localeCompare(b.employee_name);
+    if (nameCmp !== 0) return nameCmp;
+    return (b.work_date ?? "").localeCompare(a.work_date ?? "");
+  });
+
+  return { ok: true, data: out };
+}
 
 export async function getManagerTimeRecordsAction(
   workDate?: string,
@@ -124,6 +368,34 @@ export async function getManagerTimeRecordsAction(
     .order("time_in", { ascending: true });
   if (sessionError) return { ok: false, error: sessionError.message };
 
+  const manilaToday = manilaDateParts();
+  const shouldIncludeCrossDayOpenSessions = date === manilaToday;
+  const isPastDate = date.localeCompare(manilaToday) < 0;
+
+  const { data: crossDayOpenSessions, error: openSessionError } = shouldIncludeCrossDayOpenSessions
+    ? await supabase
+        .from("time_log_sessions")
+        .select("employee_id, work_date, time_in, time_out, end_reason")
+        .is("time_out", null)
+        .in("employee_id", employeeIds)
+    : { data: null, error: null };
+  if (openSessionError) return { ok: false, error: openSessionError.message };
+
+  const openSessionByEmployee = (crossDayOpenSessions ?? []).reduce<
+    Record<string, { time_in: string; time_out: string | null; end_reason: string | null }>
+  >((acc, row) => {
+    const current = acc[row.employee_id];
+    const candidate = { time_in: row.time_in, time_out: null, end_reason: row.end_reason ?? null };
+    if (!current) {
+      acc[row.employee_id] = candidate;
+      return acc;
+    }
+    if (new Date(candidate.time_in).getTime() > new Date(current.time_in).getTime()) {
+      acc[row.employee_id] = candidate;
+    }
+    return acc;
+  }, {});
+
   const { data: dtrs } = await supabase
     .from("dtr_entries")
     .select("employee_id, notes")
@@ -150,14 +422,17 @@ export async function getManagerTimeRecordsAction(
 
   const rows: ManagerTimeRecordRow[] = (employees ?? []).map((employee) => {
     const list = byEmployee[employee.id] ?? [];
-    const first = list[0] ?? null;
-    const last = list.length ? list[list.length - 1] : null;
-    const open = list.find((s) => !s.time_out) ?? null;
-    const breakUsed = list.some((s) => s.end_reason === "break");
-    const dayEnded = list.some((s) => s.end_reason === "day_end");
+    const crossDayOpen = openSessionByEmployee[employee.id] ?? null;
+    const effectiveList = list.length ? list : crossDayOpen ? [crossDayOpen] : [];
+    const first = effectiveList[0] ?? null;
+    const last = effectiveList.length ? effectiveList[effectiveList.length - 1] : null;
+    const open = effectiveList.find((s) => !s.time_out) ?? null;
+    const breakUsed = effectiveList.some((s) => s.end_reason === "break");
+    const dayEnded = effectiveList.some((s) => s.end_reason === "day_end");
     const scheduleStatus = scheduleStatusByEmployee[employee.id] ?? "no_schedule";
+    const scheduledToWorkToday = scheduleStatus === "working" || scheduleStatus === "requested";
 
-    const workedMinutesCompleted = list.reduce((acc, s) => {
+    const workedMinutesCompleted = effectiveList.reduce((acc, s) => {
       if (!s.time_out) return acc;
       const start = new Date(s.time_in).getTime();
       const end = new Date(s.time_out).getTime();
@@ -165,12 +440,12 @@ export async function getManagerTimeRecordsAction(
     }, 0);
 
     let attendance: ManagerTimeRecordRow["attendance"] = "no_record";
-    if (scheduleStatus === "no_schedule") attendance = "no_schedule";
-    else if (scheduleStatus !== "working") attendance = "not_working";
-    else if (open) attendance = "working";
+    if (open) attendance = "working";
+    else if (scheduleStatus === "no_schedule") attendance = "no_schedule";
+    else if (!scheduledToWorkToday) attendance = "not_working";
     else if (dayEnded) attendance = "timed_out";
     else if (breakUsed) attendance = "on_break";
-    else if (!list.length && (scheduleStatus === "working")) attendance = "absent";
+    else if (!effectiveList.length && scheduledToWorkToday) attendance = isPastDate ? "absent" : "not_working";
 
     return {
       employee_id: employee.id,
@@ -180,7 +455,7 @@ export async function getManagerTimeRecordsAction(
       first_time_in: first?.time_in ?? null,
       last_time_out: last?.time_out ?? null,
       open_time_in: open?.time_in ?? null,
-      sessions: list.length,
+      sessions: effectiveList.length,
       worked_minutes_completed: workedMinutesCompleted,
       dtr_text: dtrTextByEmployee[employee.id] ?? null,
     };
@@ -196,7 +471,20 @@ async function getTodayStatusInternal(): Promise<ActionResult<TimeClockStatus>> 
   } = await supabase.auth.getSession();
   if (!session) return { ok: false, error: "Unauthenticated" };
 
-  const today = manilaDateParts();
+  const manilaToday = manilaDateParts();
+
+  // Sessions can span midnight; always resolve an open session without filtering by date
+  // so the active session doesn't "disappear" at 12:00 AM.
+  const { data: openAnyDate } = await supabase
+    .from("time_log_sessions")
+    .select("id, work_date, time_in, time_out, end_reason")
+    .eq("employee_id", session.user.id)
+    .is("time_out", null)
+    .order("time_in", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const today = openAnyDate?.work_date ?? manilaToday;
 
   const { data: schedule } = await supabase
     .from("schedules")
@@ -206,8 +494,10 @@ async function getTodayStatusInternal(): Promise<ActionResult<TimeClockStatus>> 
     .gte("week_end", today)
     .maybeSingle();
 
+  const hasScheduleForWeek = Boolean(schedule);
   let hasScheduleForToday = false;
   let scheduleMessage: string | undefined;
+  let todayWorkStatus: TimeClockStatus["todayWorkStatus"] = null;
   if (!schedule) {
     hasScheduleForToday = false;
     scheduleMessage = "No schedule found for this week.";
@@ -222,11 +512,21 @@ async function getTodayStatusInternal(): Promise<ActionResult<TimeClockStatus>> 
     if (!scheduleDay) {
       hasScheduleForToday = false;
       scheduleMessage = "No schedule day found for today.";
-    } else if (scheduleDay.work_status !== "working") {
-      hasScheduleForToday = false;
-      scheduleMessage = "You are not scheduled as working today.";
     } else {
-      hasScheduleForToday = true;
+      todayWorkStatus = (scheduleDay.work_status ?? null) as TimeClockStatus["todayWorkStatus"];
+      if (scheduleDay.work_status === "working" || scheduleDay.work_status === "requested") {
+        hasScheduleForToday = true;
+      } else {
+        hasScheduleForToday = false;
+        scheduleMessage =
+          scheduleDay.work_status === "day_off"
+            ? "Today is marked as Day off."
+            : scheduleDay.work_status === "leave"
+              ? "Today is marked as Leave."
+              : scheduleDay.work_status === "holiday"
+                ? "Today is marked as Holiday."
+                : "You are not scheduled as working today.";
+      }
     }
   }
 
@@ -261,7 +561,9 @@ async function getTodayStatusInternal(): Promise<ActionResult<TimeClockStatus>> 
     ok: true,
     data: {
       today,
+      hasScheduleForWeek,
       hasScheduleForToday,
+      todayWorkStatus,
       scheduleMessage,
       hasDtrForToday: Boolean(dtr),
       breakUsed,

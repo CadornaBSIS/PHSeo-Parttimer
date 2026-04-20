@@ -55,8 +55,9 @@ export function TimeInOutPanel() {
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<TimeClockStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState<number | null>(null);
   const inFlightRef = useRef(false);
+  const [mounted, setMounted] = useState(false);
 
   const load = useCallback((mode: "foreground" | "background" = "foreground") => {
     if (inFlightRef.current) return;
@@ -86,8 +87,10 @@ export function TimeInOutPanel() {
   }, [load]);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
+    setMounted(true);
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -133,7 +136,7 @@ export function TimeInOutPanel() {
   }, [status?.openSessionId, status?.sessions?.length]);
 
   const activeWorkedMinutes = useMemo(() => {
-    if (!status?.openTimeIn) return 0;
+    if (!status?.openTimeIn || now === null) return 0;
     const startMs = new Date(status.openTimeIn).getTime();
     const minutes = Math.max(0, Math.floor((now - startMs) / 60000));
     return minutes;
@@ -163,6 +166,7 @@ export function TimeInOutPanel() {
 
   const sessions = useMemo(() => {
     const raw = status?.sessions ?? [];
+    const safeNow = now ?? 0;
     const items: Array<{
       id: string;
       kind: "work" | "break";
@@ -174,7 +178,7 @@ export function TimeInOutPanel() {
 
     const minutesBetween = (startIso: string, endIso: string | null) => {
       const startMs = new Date(startIso).getTime();
-      const endMs = endIso ? new Date(endIso).getTime() : now;
+      const endMs = endIso ? new Date(endIso).getTime() : safeNow;
       return Math.max(0, Math.floor((endMs - startMs) / 60000));
     };
 
@@ -209,13 +213,35 @@ export function TimeInOutPanel() {
 
   const todayTitle = status ? formatManilaLongDate(status.today) : "Today";
   const manilaNow = useMemo(() => {
+    if (!mounted || now === null) return "--:--:--";
     return new Date(now).toLocaleTimeString("en-US", {
       timeZone: "Asia/Manila",
       hour: "numeric",
       minute: "2-digit",
       second: "2-digit",
     });
-  }, [now]);
+  }, [mounted, now]);
+
+  const notifyChanged = useCallback(() => {
+    window.dispatchEvent(new Event("timeclock:changed"));
+  }, []);
+
+  const todayWorkBadge = useMemo(() => {
+    if (!status?.hasScheduleForWeek) return null;
+    if (!status.todayWorkStatus) return null;
+    if (status.hasScheduleForToday) return null;
+    const label =
+      status.todayWorkStatus === "day_off"
+        ? "Day off"
+        : status.todayWorkStatus === "leave"
+          ? "Leave"
+          : status.todayWorkStatus === "holiday"
+            ? "Holiday"
+            : status.todayWorkStatus === "requested"
+              ? "Requested"
+              : "Not working";
+    return <Badge variant="muted">{label}</Badge>;
+  }, [status?.hasScheduleForWeek, status?.hasScheduleForToday, status?.todayWorkStatus]);
 
   return (
     <div className="grid gap-4">
@@ -234,11 +260,12 @@ export function TimeInOutPanel() {
 
               <div className="flex flex-wrap items-center gap-2" aria-live="polite">
                 <Badge variant={stateVariant}>{stateLabel}</Badge>
-                {status?.hasScheduleForToday ? (
+                {status?.hasScheduleForWeek ? (
                   <Badge variant="success">Scheduled</Badge>
                 ) : (
                   <Badge variant="danger">No schedule</Badge>
                 )}
+                {todayWorkBadge}
                 {status?.hasDtrForToday ? (
                   <Badge variant="success">DTR ready</Badge>
                 ) : (
@@ -346,6 +373,7 @@ export function TimeInOutPanel() {
                   }
                   toast.success(status?.sessions?.length ? "Resumed work." : "Timed in.");
                   load("background");
+                  notifyChanged();
                 });
               }}
             >
@@ -368,6 +396,7 @@ export function TimeInOutPanel() {
                     }
                     toast.success("Break started.");
                     load("background");
+                    notifyChanged();
                   });
                 }}
               >
@@ -394,6 +423,7 @@ export function TimeInOutPanel() {
                   }
                   toast.success("Timed out.");
                   load("background");
+                  notifyChanged();
                 });
               }}
             >

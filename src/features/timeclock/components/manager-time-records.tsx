@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -47,13 +46,14 @@ export function ManagerTimeRecords() {
   const [loading, setLoading] = useState(true);
   const [workDate, setWorkDate] = useState("");
   const [rows, setRows] = useState<ManagerTimeRecordRow[]>([]);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState<number | null>(null);
   const inFlightRef = useRef(false);
   const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 60000);
-    return () => clearInterval(id);
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 60000);
+    return () => window.clearInterval(id);
   }, []);
 
   const load = useCallback((date?: string, mode: "foreground" | "background" = "foreground") => {
@@ -124,9 +124,15 @@ export function ManagerTimeRecords() {
     };
   }, [load, workDate]);
 
+  useEffect(() => {
+    const onChanged = () => load(workDate || undefined, "background");
+    window.addEventListener("timeclock:changed", onChanged);
+    return () => window.removeEventListener("timeclock:changed", onChanged);
+  }, [load, workDate]);
+
   const computedRows = useMemo(() => {
     return rows.map((row) => {
-      const extraActiveMinutes = row.open_time_in
+      const extraActiveMinutes = row.open_time_in && now !== null
         ? Math.max(0, Math.floor((now - new Date(row.open_time_in).getTime()) / 60000))
         : 0;
       const workedTotal = row.worked_minutes_completed + extraActiveMinutes;
@@ -148,32 +154,45 @@ export function ManagerTimeRecords() {
         accessorKey: "attendance",
         cell: ({ row }) => {
           const status = row.original.attendance;
-          const variant = status === "working"
-            ? "success"
-            : status === "timed_out"
-              ? "secondary"
-              : status === "on_break"
-                ? "warning"
-                : status === "absent"
-                  ? "danger"
-                  : status === "not_working"
-                    ? "muted"
+          const scheduleStatus = row.original.schedule_status;
+          const scheduleLabel =
+            scheduleStatus === "day_off"
+              ? "Day off"
+              : scheduleStatus === "leave"
+                ? "Leave"
+                : scheduleStatus === "holiday"
+                  ? "Holiday"
+                  : scheduleStatus === "requested"
+                    ? "Requested"
+                    : null;
+
+          const variant =
+            status === "working"
+              ? "success"
+              : status === "timed_out"
+                ? "secondary"
+                : status === "on_break"
+                  ? "warning"
+                  : status === "absent"
+                    ? "danger"
                     : status === "no_schedule"
                       ? "muted"
-                      : "muted";
-          const label = status === "working"
-            ? "Working"
-            : status === "timed_out"
-              ? "Timed out"
-              : status === "on_break"
-                ? "On break"
-                : status === "absent"
-                  ? "Absent"
-                  : status === "not_working"
-                    ? "Not working"
+                      : scheduleStatus === "requested"
+                        ? "warning"
+                        : "muted";
+
+          const label =
+            status === "working"
+              ? "Working"
+              : status === "timed_out"
+                ? "Timed out"
+                : status === "on_break"
+                  ? "On break"
+                  : status === "absent"
+                    ? "Absent"
                     : status === "no_schedule"
                       ? "No schedule"
-                      : "No record";
+                      : scheduleLabel ?? "Not working";
           return <Badge variant={variant}>{label}</Badge>;
         },
       },
@@ -216,19 +235,8 @@ export function ManagerTimeRecords() {
           );
         },
       },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={`/time/team/${row.original.employee_id}?date=${workDate}`} prefetch={false}>
-              View logs
-            </Link>
-          </Button>
-        ),
-      },
     ],
-    [workDate],
+    [],
   );
 
   return (

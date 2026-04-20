@@ -289,7 +289,7 @@ export default async function DashboardPage() {
         userId={profile.id}
       />
 
-      <Card className="overflow-hidden border-slate-200">
+      <Card className="overflow-hidden border-slate-200 p-0">
         <CardContent className="space-y-4 bg-gradient-to-r from-white via-slate-50 to-blue-50 p-5 sm:p-6">
           <div className="space-y-1">
             <div className="space-y-1">
