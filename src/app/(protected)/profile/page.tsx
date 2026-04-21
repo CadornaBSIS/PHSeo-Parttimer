@@ -25,14 +25,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { LiveUnreadCount } from "@/features/notifications/components/live-unread-count";
 import { requireProfile } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
 type ProfileStat = {
   label: string;
-  value: string;
-  helper: string;
+  value: React.ReactNode;
   icon: LucideIcon;
   cardClassName: string;
   iconClassName: string;
@@ -101,36 +101,37 @@ export default async function ProfilePage() {
   const profileStats: ProfileStat[] = [
     {
       label: "Unread Notifications",
-      value: unreadNotificationCount.toLocaleString(),
-      helper: "Pending updates",
+      value: (
+        <LiveUnreadCount
+          userId={profile.id}
+          initialCount={unreadNotificationCount}
+        />
+      ),
       icon: Bell,
       cardClassName: "border-rose-100 bg-gradient-to-br from-white to-rose-50/70",
-      iconClassName: "border-rose-200 bg-rose-100 text-rose-600",
+      iconClassName: "text-rose-600",
     },
     {
       label: "Schedules Submitted",
       value: submittedScheduleCount.toLocaleString(),
-      helper: "Personal total",
       icon: CalendarClock,
       cardClassName: "border-sky-100 bg-gradient-to-br from-white to-sky-50/70",
-      iconClassName: "border-sky-200 bg-sky-100 text-sky-600",
+      iconClassName: "text-sky-600",
     },
     {
       label: "DTR Submitted",
       value: submittedDtrCount.toLocaleString(),
-      helper: "Personal total",
       icon: Clock3,
       cardClassName: "border-amber-100 bg-gradient-to-br from-white to-amber-50/80",
-      iconClassName: "border-amber-200 bg-amber-100 text-amber-700",
+      iconClassName: "text-amber-700",
     },
     {
       label: isManager ? "Active Team Members" : "Profile Role",
       value: isManager ? activeTeamMemberCount.toLocaleString() : roleLabel,
-      helper: isManager ? "Employee accounts" : "Current role",
       icon: isManager ? UsersRound : BriefcaseBusiness,
       cardClassName: "border-emerald-100 bg-gradient-to-br from-white to-emerald-50/70",
-      iconClassName: "border-emerald-200 bg-emerald-100 text-emerald-700",
-      valueClassName: isManager ? undefined : "text-[2rem]",
+      iconClassName: "text-emerald-700",
+      valueClassName: isManager ? undefined : "text-[1.95rem] leading-tight sm:text-[2.1rem]",
     },
   ];
 
@@ -152,23 +153,23 @@ export default async function ProfilePage() {
           <div className="pointer-events-none absolute right-[-2rem] top-[-1rem] h-52 w-52 rounded-full bg-sky-200/40 blur-3xl" />
           <div className="pointer-events-none absolute bottom-[-4rem] right-[20%] h-40 w-40 rounded-full bg-amber-100/40 blur-3xl" />
 
-          <div className="relative p-6 sm:p-8">
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px] xl:items-center">
-              <div className="space-y-4">
+          <div className="relative p-4 sm:p-6 lg:p-8">
+            <div className="grid gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_280px] xl:items-center">
+              <div className="space-y-3 sm:space-y-4">
                 <div className="space-y-3">
-                  <h2 className="text-4xl font-semibold tracking-tight text-slate-950 xl:text-5xl">
+                  <h2 className="break-words text-3xl font-semibold leading-tight tracking-tight text-slate-950 sm:text-4xl xl:text-5xl">
                     {profile.full_name}
                   </h2>
-                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-base text-slate-500">
-                    <span className="inline-flex items-center gap-2">
+                  <div className="flex flex-col gap-2 text-sm text-slate-500 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2 sm:text-base">
+                    <span className="inline-flex min-w-0 items-center gap-2">
                       <Mail className="h-4 w-4 text-slate-400" />
-                      {profile.email}
+                      <span className="min-w-0 break-all">{profile.email}</span>
                     </span>
-                    <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex min-w-0 items-center gap-2">
                       <CalendarDays className="h-4 w-4 text-slate-400" />
                       Joined {joinedDate}
                     </span>
-                    <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex min-w-0 items-center gap-2">
                       <Clock3 className="h-4 w-4 text-slate-400" />
                       Updated {lastUpdated}
                     </span>
@@ -186,17 +187,21 @@ export default async function ProfilePage() {
                   </span>
                   <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-sm text-slate-600 shadow-sm">
                     <Bell className="h-4 w-4 text-rose-500" />
-                    {unreadNotificationCount} unread notifications
+                    <LiveUnreadCount
+                      userId={profile.id}
+                      initialCount={unreadNotificationCount}
+                    />{" "}
+                    unread notifications
                   </span>
                 </div>
 
-                <p className="max-w-3xl text-base leading-8 text-slate-600">
+                <p className="max-w-3xl text-sm leading-7 text-slate-600 sm:text-base sm:leading-8">
                   Keep your account details current and stay on top of schedules, DTR submissions,
                   and team updates from one place.
                 </p>
               </div>
 
-              <div className="grid gap-3 xl:justify-self-end xl:w-full">
+              <div className="grid w-full gap-3 xl:justify-self-end xl:w-full">
                 <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                     Quick actions
@@ -241,33 +246,21 @@ export default async function ProfilePage() {
                 stat.cardClassName,
               )}
             >
-              <CardContent className="relative flex min-h-[190px] flex-col justify-between p-5 sm:p-6">
-                <div
-                  className={cn(
-                    "absolute right-5 top-5 flex h-11 w-11 items-center justify-center rounded-2xl border shadow-sm",
-                    stat.iconClassName,
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                </div>
-
-                <div className="pr-14">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    {stat.label}
-                  </p>
+              <CardContent className="flex min-h-[124px] items-start justify-between gap-4 p-5 sm:min-h-[136px] sm:p-6">
+                <div className="min-w-0 flex-1">
                   <p
                     className={cn(
-                      "mt-5 text-[2.25rem] font-semibold leading-none tracking-tight text-slate-950",
+                      "break-words text-[2.15rem] font-semibold leading-none tracking-tight text-slate-950 sm:text-[2.35rem]",
                       stat.valueClassName,
                     )}
                   >
                     {stat.value}
                   </p>
+                  <p className="mt-3 max-w-[12rem] text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    {stat.label}
+                  </p>
                 </div>
-
-                <div className="mt-6 border-t border-white/70 pt-4 text-sm text-slate-600">
-                  <span>{stat.helper}</span>
-                </div>
+                <Icon className={cn("mt-1 h-5 w-5 shrink-0 sm:h-6 sm:w-6", stat.iconClassName)} />
               </CardContent>
             </Card>
           );

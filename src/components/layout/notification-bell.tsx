@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Bell, CheckCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { dispatchNotificationCountSync } from "@/features/notifications/client-events";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Notification } from "@/types/db";
@@ -16,30 +17,40 @@ type NotificationBellProps = {
 export function NotificationBell({ userId }: NotificationBellProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [supabase] = useState(() => createBrowserSupabaseClient());
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const triggerId = `notification-menu-trigger-${userId}`;
 
-  const unreadCount = useMemo(
-    () => notifications.filter((item) => !item.is_read).length,
-    [notifications],
-  );
-
-  useEffect(() => {
-    const supabase = createBrowserSupabaseClient();
-
-    const loadNotifications = async () => {
-      const { data } = await supabase
+  const loadNotifications = useCallback(async () => {
+    const [{ data }, { count, error: countError }] = await Promise.all([
+      supabase
         .from("notifications")
         .select("id, user_id, type, title, message, is_read, link, created_at")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
-        .limit(8);
+        .limit(8),
+      supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("is_read", false),
+    ]);
 
-      setNotifications((data as Notification[] | null) ?? []);
-    };
+    setNotifications((data as Notification[] | null) ?? []);
 
-    void loadNotifications();
+    if (!countError) {
+      const nextUnreadCount = count ?? 0;
+      setUnreadCount(nextUnreadCount);
+      dispatchNotificationCountSync(userId, nextUnreadCount);
+    }
+  }, [supabase, userId]);
+
+  useEffect(() => {
+    const initialLoadTimer = window.setTimeout(() => {
+      void loadNotifications();
+    }, 0);
 
     const channel = supabase
       .channel(`notifications:${userId}`)
@@ -58,24 +69,41 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       .subscribe();
 
     return () => {
+      window.clearTimeout(initialLoadTimer);
       void supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [loadNotifications, supabase, userId]);
 
   const markRead = async (id: string) => {
-    const supabase = createBrowserSupabaseClient();
-    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
-    setNotifications((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, is_read: true } : item)),
-    );
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("id", id)
+      .eq("user_id", userId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    await loadNotifications();
+    router.refresh();
   };
 
   const markAllRead = async () => {
-    const unreadIds = notifications.filter((item) => !item.is_read).map((item) => item.id);
-    if (!unreadIds.length) return;
-    const supabase = createBrowserSupabaseClient();
-    await supabase.from("notifications").update({ is_read: true }).in("id", unreadIds);
-    setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
+    if (!unreadCount) return;
+
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", userId)
+      .eq("is_read", false);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    await loadNotifications();
+    router.refresh();
   };
 
   return (

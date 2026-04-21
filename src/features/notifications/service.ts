@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export async function createNotification(params: {
@@ -25,9 +26,42 @@ export async function markNotificationRead(id: string) {
     data: { session },
   } = await supabase.auth.getSession();
   if (!session) return;
-  await supabase
+  const { error } = await supabase
     .from("notifications")
     .update({ is_read: true })
     .eq("id", id)
     .eq("user_id", session.user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidateNotificationViews();
+}
+
+export async function markAllNotificationsRead() {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return;
+
+  const { error } = await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("user_id", session.user.id)
+    .eq("is_read", false);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidateNotificationViews();
+}
+
+function revalidateNotificationViews() {
+  revalidatePath("/dashboard");
+  revalidatePath("/profile");
+  revalidatePath("/settings");
+  revalidatePath("/settings/password");
 }
