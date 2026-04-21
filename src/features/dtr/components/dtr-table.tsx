@@ -96,7 +96,7 @@ export function DtrTable({
         ),
       },
     ],
-    [],
+    [detailHrefBase],
   );
 
   const weekGroups = useMemo(() => buildWeekGroups(data), [data]);
@@ -120,7 +120,7 @@ export function DtrTable({
 
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
+  const defaultExpandedWeeks = useMemo(() => {
     const next = new Set<string>();
     if (isManager) {
       employees.forEach((employee) => {
@@ -130,8 +130,18 @@ export function DtrTable({
     } else if (weekGroups[0]) {
       next.add(weekGroups[0].key);
     }
-    setExpandedWeeks(next);
+    return next;
   }, [employees, isManager, weekGroups]);
+
+  useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      setExpandedWeeks(defaultExpandedWeeks);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [defaultExpandedWeeks]);
 
   const toggleWeek = (key: string) => {
     setExpandedWeeks((prev) => {

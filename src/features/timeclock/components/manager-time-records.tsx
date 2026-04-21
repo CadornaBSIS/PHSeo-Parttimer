@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/data-table";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   getManagerTimeRecordsAction,
@@ -130,6 +131,39 @@ export function ManagerTimeRecords() {
     return () => window.removeEventListener("timeclock:changed", onChanged);
   }, [load, workDate]);
 
+  useEffect(() => {
+    const supabase = createBrowserSupabaseClient();
+    const channel = supabase
+      .channel("manager-time-records")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "time_log_sessions",
+        },
+        () => {
+          load(workDate || undefined, "background");
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "dtr_entries",
+        },
+        () => {
+          load(workDate || undefined, "background");
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [load, workDate]);
+
   const computedRows = useMemo(() => {
     return rows.map((row) => {
       const extraActiveMinutes = row.open_time_in && now !== null
@@ -142,7 +176,9 @@ export function ManagerTimeRecords() {
     });
   }, [rows, now]);
 
-  const columns: ColumnDef<(typeof computedRows)[number]>[] = useMemo(
+  type ComputedManagerTimeRecordRow = (typeof computedRows)[number];
+
+  const columns: ColumnDef<ComputedManagerTimeRecordRow>[] = useMemo(
     () => [
       {
         header: "Employee",
@@ -217,7 +253,7 @@ export function ManagerTimeRecords() {
         accessorKey: "worked_total_minutes",
         cell: ({ row }) => (
           <span className="tabular-nums font-semibold text-slate-900">
-            {formatMinutes((row.original as any).worked_total_minutes ?? row.original.worked_minutes_completed)}
+            {formatMinutes(row.original.worked_total_minutes ?? row.original.worked_minutes_completed)}
           </span>
         ),
       },

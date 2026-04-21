@@ -54,23 +54,22 @@ export default async function ManagerRecordsPage() {
         title="My Records"
         description="Create your own schedule and DTR entries (auto-approved)."
         userId={profile.id}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline">
-              <Link href="/manager-records/schedule/new">
-                <CalendarPlus className="h-4 w-4" />
-                New schedule
-              </Link>
-            </Button>
-            <Button asChild disabled={!hasAnySchedule}>
-              <Link href="/manager-records/dtr/new">
-                <Plus className="h-4 w-4" />
-                New DTR
-              </Link>
-            </Button>
-          </div>
-        }
       />
+
+      <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+        <Button asChild variant="outline" className="w-full sm:w-auto">
+          <Link href="/manager-records/schedule/new">
+            <CalendarPlus className="h-4 w-4" />
+            New schedule
+          </Link>
+        </Button>
+        <Button asChild disabled={!hasAnySchedule} className="w-full sm:w-auto">
+          <Link href="/manager-records/dtr/new">
+            <Plus className="h-4 w-4" />
+            New DTR
+          </Link>
+        </Button>
+      </div>
 
       {!hasAnySchedule ? (
         <p className="text-sm text-slate-500">
@@ -80,7 +79,7 @@ export default async function ManagerRecordsPage() {
 
       <div className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-900">Schedules</h2>
-        <div className="card">
+        <div className="card p-3 sm:p-4">
           <ScheduleTable
             data={scheduleRows}
             isManager={false}
@@ -93,7 +92,7 @@ export default async function ManagerRecordsPage() {
 
       <div className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-900">DTR</h2>
-        <div className="card">
+        <div className="card p-3 sm:p-4">
           <DtrTable data={dtrRows} isManager={false} detailHrefBase="/manager-records/dtr" />
         </div>
       </div>

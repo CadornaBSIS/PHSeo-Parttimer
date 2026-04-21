@@ -8,6 +8,7 @@ import { format, parseISO, startOfWeek } from "date-fns";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/data-table";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { formatMinutes, formatWeekRange } from "@/utils/date";
 import {
@@ -131,6 +132,39 @@ export function TeamTimeRecordHistory({
     const onChanged = () => load("background");
     window.addEventListener("timeclock:changed", onChanged);
     return () => window.removeEventListener("timeclock:changed", onChanged);
+  }, [load]);
+
+  useEffect(() => {
+    const supabase = createBrowserSupabaseClient();
+    const channel = supabase
+      .channel("team-time-record-history")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "time_log_sessions",
+        },
+        () => {
+          load("background");
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "dtr_entries",
+        },
+        () => {
+          load("background");
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [load]);
 
   const computedRows: ComputedRow[] = useMemo(() => {

@@ -40,7 +40,7 @@ export function StatCard({
           </p>
         ) : null}
       </div>
-      {icon ? <div className="text-slate-400">{icon}</div> : null}
+      {icon ? <div className="shrink-0">{icon}</div> : null}
     </Card>
   );
 }

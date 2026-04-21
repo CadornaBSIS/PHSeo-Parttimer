@@ -35,14 +35,14 @@ export default async function LoginPage() {
                 <span className="font-medium">Manager-provisioned access only</span>
               </div>
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold leading-tight">
-                PH SEO Parttimer
+                PH SEO Workforce Management System
               </h1>
               <p className="text-base sm:text-lg text-slate-300">
-                Internal scheduling & DTR platform for managers and employees. No public sign-ups.
-                Secure, role-based access with Supabase Auth.
+                Internal workforce platform for schedules, DTR, time records, and team oversight.
+                No public sign-ups. Secure, role-based access with Supabase Auth.
               </p>
               <div className="flex flex-wrap justify-center md:justify-start gap-2 sm:gap-3 text-sm text-slate-200">
-                {["Scheduling", "DTR & PDF exports", "Manager monitoring"].map((label) => (
+                {["Scheduling", "DTR & time records", "Workforce oversight"].map((label) => (
                   <span
                     key={label}
                     className="px-4 py-2 rounded-full bg-white/10 border border-white/15 backdrop-blur-sm"
@@ -53,7 +53,7 @@ export default async function LoginPage() {
               </div>
             </div>
           </div>
-          <div className="order-1 md:order-2 rounded-2xl bg-white/10 border border-white/10 p-6 sm:p-8 text-white shadow-xl shadow-black/20 backdrop-blur">
+          <div className="order-1 md:order-2 rounded-2xl border border-white/10 bg-white/5 p-6 sm:p-8 text-white shadow-xl shadow-black/20">
             <div className="mb-6 space-y-1">
               <p className="text-sm font-medium text-slate-300">Sign in</p>
               <h2 className="text-2xl font-semibold text-white">

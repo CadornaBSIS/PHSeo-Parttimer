@@ -3,16 +3,12 @@ import { format } from "date-fns";
 import {
   ArrowRight,
   Bell,
-  BriefcaseBusiness,
   Building2,
   CalendarDays,
-  CalendarClock,
   Clock3,
   Mail,
   Settings2,
   UserRound,
-  UsersRound,
-  type LucideIcon,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -30,15 +26,6 @@ import { requireProfile } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
-type ProfileStat = {
-  label: string;
-  value: React.ReactNode;
-  icon: LucideIcon;
-  cardClassName: string;
-  iconClassName: string;
-  valueClassName?: string;
-};
-
 export default async function ProfilePage() {
   const profile = await requireProfile();
   const supabase = await createServerSupabaseClient();
@@ -46,27 +33,14 @@ export default async function ProfilePage() {
 
   const [
     { count: unreadNotifications = 0 },
-    { count: submittedSchedules = 0 },
-    { count: submittedDtr = 0 },
     { data: latestScheduleRows },
     { data: latestDtrRows },
-    { count: teamMembers = 0 },
   ] = await Promise.all([
     supabase
       .from("notifications")
       .select("id", { count: "exact", head: true })
       .eq("user_id", profile.id)
       .eq("is_read", false),
-    supabase
-      .from("schedules")
-      .select("id", { count: "exact", head: true })
-      .eq("employee_id", profile.id)
-      .eq("status", "submitted"),
-    supabase
-      .from("dtr_entries")
-      .select("id", { count: "exact", head: true })
-      .eq("employee_id", profile.id)
-      .eq("status", "submitted"),
     supabase
       .from("schedules")
       .select("week_start, status, updated_at")
@@ -79,61 +53,15 @@ export default async function ProfilePage() {
       .eq("employee_id", profile.id)
       .order("updated_at", { ascending: false })
       .limit(1),
-    isManager
-      ? supabase
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .eq("role", "employee")
-          .eq("status", "active")
-      : Promise.resolve({ count: 0 }),
   ]);
 
   const latestSchedule = latestScheduleRows?.[0];
   const latestDtr = latestDtrRows?.[0];
   const unreadNotificationCount = unreadNotifications ?? 0;
-  const submittedScheduleCount = submittedSchedules ?? 0;
-  const submittedDtrCount = submittedDtr ?? 0;
-  const activeTeamMemberCount = teamMembers ?? 0;
   const statusText = (profile.status ?? "inactive").replace(/_/g, " ");
   const joinedDate = format(new Date(profile.created_at), "MMMM d, yyyy");
   const lastUpdated = format(new Date(profile.updated_at), "MMMM d, yyyy");
   const roleLabel = isManager ? "Manager" : "Employee";
-  const profileStats: ProfileStat[] = [
-    {
-      label: "Unread Notifications",
-      value: (
-        <LiveUnreadCount
-          userId={profile.id}
-          initialCount={unreadNotificationCount}
-        />
-      ),
-      icon: Bell,
-      cardClassName: "border-rose-100 bg-gradient-to-br from-white to-rose-50/70",
-      iconClassName: "text-rose-600",
-    },
-    {
-      label: "Schedules Submitted",
-      value: submittedScheduleCount.toLocaleString(),
-      icon: CalendarClock,
-      cardClassName: "border-sky-100 bg-gradient-to-br from-white to-sky-50/70",
-      iconClassName: "text-sky-600",
-    },
-    {
-      label: "DTR Submitted",
-      value: submittedDtrCount.toLocaleString(),
-      icon: Clock3,
-      cardClassName: "border-amber-100 bg-gradient-to-br from-white to-amber-50/80",
-      iconClassName: "text-amber-700",
-    },
-    {
-      label: isManager ? "Active Team Members" : "Profile Role",
-      value: isManager ? activeTeamMemberCount.toLocaleString() : roleLabel,
-      icon: isManager ? UsersRound : BriefcaseBusiness,
-      cardClassName: "border-emerald-100 bg-gradient-to-br from-white to-emerald-50/70",
-      iconClassName: "text-emerald-700",
-      valueClassName: isManager ? undefined : "text-[1.95rem] leading-tight sm:text-[2.1rem]",
-    },
-  ];
 
   return (
     <div className="space-y-6 md:space-y-8 w-full overflow-x-hidden">
@@ -233,39 +161,6 @@ export default async function ProfilePage() {
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {profileStats.map((stat) => {
-          const Icon = stat.icon;
-
-          return (
-            <Card
-              key={stat.label}
-              className={cn(
-                "overflow-hidden shadow-sm transition-colors",
-                stat.cardClassName,
-              )}
-            >
-              <CardContent className="flex min-h-[124px] items-start justify-between gap-4 p-5 sm:min-h-[136px] sm:p-6">
-                <div className="min-w-0 flex-1">
-                  <p
-                    className={cn(
-                      "break-words text-[2.15rem] font-semibold leading-none tracking-tight text-slate-950 sm:text-[2.35rem]",
-                      stat.valueClassName,
-                    )}
-                  >
-                    {stat.value}
-                  </p>
-                  <p className="mt-3 max-w-[12rem] text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    {stat.label}
-                  </p>
-                </div>
-                <Icon className={cn("mt-1 h-5 w-5 shrink-0 sm:h-6 sm:w-6", stat.iconClassName)} />
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
 
       <div className="grid items-stretch gap-4 lg:grid-cols-2">
         <Card className="h-full shadow-sm">

@@ -78,12 +78,12 @@ export default async function DashboardPage() {
           <StatCard
             label="Employees"
             value={employeeCount ?? 0}
-            icon={<Users className="h-5 w-5" />}
+            icon={<Users className="h-5 w-5 text-emerald-600" />}
           />
           <StatCard
             label="Schedules submitted"
             value={schedulesSubmitted ?? 0}
-            icon={<CalendarClock className="h-5 w-5" />}
+            icon={<CalendarClock className="h-5 w-5 text-sky-600" />}
           />
           <StatCard
             label="Schedules in draft"
@@ -93,7 +93,7 @@ export default async function DashboardPage() {
           <StatCard
             label="DTR submitted"
             value={dtrSubmitted ?? 0}
-            icon={<Clock3 className="h-5 w-5" />}
+            icon={<Clock3 className="h-5 w-5 text-indigo-600" />}
           />
         </div>
 

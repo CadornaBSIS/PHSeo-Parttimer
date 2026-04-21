@@ -30,12 +30,12 @@ export function PageHeader({
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="page-title">{title}</h1>
         </div>
         {actions || userId ? (
-          <div className="flex items-center gap-2 md:shrink-0">
+          <div className="flex w-full items-center gap-2 sm:w-auto md:shrink-0">
             {desktopBell}
             {actions}
           </div>

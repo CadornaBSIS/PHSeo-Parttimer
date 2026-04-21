@@ -101,15 +101,24 @@ export default async function ScheduleListPage({
         </Link>
       </div>
 
-      <div className="card">
+      {profile.role === "manager" ? (
         <ScheduleTable
           data={rows}
-          isManager={profile.role === "manager"}
+          isManager
           statusFilter={params.status}
-          employeeId={profile.role === "employee" ? profile.id : undefined}
           realtime
         />
-      </div>
+      ) : (
+        <div className="card">
+          <ScheduleTable
+            data={rows}
+            isManager={false}
+            statusFilter={params.status}
+            employeeId={profile.id}
+            realtime
+          />
+        </div>
+      )}
     </div>
   );
 }

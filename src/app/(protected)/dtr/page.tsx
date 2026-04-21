@@ -115,9 +115,13 @@ export default async function DtrListPage({
         </Link>
       </div>
 
-      <div className="card">
-        <DtrTable data={rows} isManager={profile.role === "manager"} />
-      </div>
+      {profile.role === "manager" ? (
+        <DtrTable data={rows} isManager />
+      ) : (
+        <div className="card">
+          <DtrTable data={rows} isManager={false} />
+        </div>
+      )}
     </div>
   );
 }
