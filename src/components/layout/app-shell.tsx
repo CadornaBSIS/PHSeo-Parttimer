@@ -1,6 +1,7 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { AppSidebar } from "@/components/layout/sidebar";
 import { AppHeader } from "@/components/layout/header";
 import { Profile } from "@/types/db";
@@ -12,6 +13,11 @@ type Props = {
 
 export function AppShell({ profile, children }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">

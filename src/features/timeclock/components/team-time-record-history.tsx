@@ -263,13 +263,6 @@ export function TeamTimeRecordHistory({
 
   return (
     <div className={cn("space-y-4", loading ? "opacity-90" : "", className)}>
-      <div className="space-y-1">
-        <p className="text-sm font-semibold text-slate-900">Team time record history</p>
-        <p className="text-xs text-slate-500">
-          Weekly breakdown of time records for employees (including managers).
-        </p>
-      </div>
-
       <div className="space-y-4">
         {weekGroups.map((week) => {
           const isWeekOpen = expandedWeeks.has(week.key);

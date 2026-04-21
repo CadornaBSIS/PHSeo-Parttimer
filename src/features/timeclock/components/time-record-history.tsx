@@ -61,6 +61,7 @@ export function TimeRecordHistory({
   detailHrefBase,
   title = "History",
   description = "Weekly breakdown of your time records.",
+  showHeader = true,
   className,
   limitDays = 90,
 }: {
@@ -68,6 +69,7 @@ export function TimeRecordHistory({
   detailHrefBase?: string;
   title?: string;
   description?: string;
+  showHeader?: boolean;
   className?: string;
   limitDays?: number;
 }) {
@@ -241,10 +243,12 @@ export function TimeRecordHistory({
 
   return (
     <div className={cn("space-y-4", loading ? "opacity-90" : "", className)}>
-      <div className="space-y-1">
-        <p className="text-sm font-semibold text-slate-900">{title}</p>
-        <p className="text-xs text-slate-500">{description}</p>
-      </div>
+      {showHeader ? (
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-slate-900">{title}</p>
+          <p className="text-xs text-slate-500">{description}</p>
+        </div>
+      ) : null}
 
       <div className="space-y-4">
         {weekGroups.map((group) => {

@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import {
+  ArrowRight,
   Bell,
   BriefcaseBusiness,
   Building2,
+  CalendarDays,
   CalendarClock,
   Clock3,
   Mail,
+  Settings2,
   UserRound,
   UsersRound,
+  type LucideIcon,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -24,6 +28,16 @@ import {
 import { requireProfile } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
+
+type ProfileStat = {
+  label: string;
+  value: string;
+  helper: string;
+  icon: LucideIcon;
+  cardClassName: string;
+  iconClassName: string;
+  valueClassName?: string;
+};
 
 export default async function ProfilePage() {
   const profile = await requireProfile();
@@ -76,14 +90,49 @@ export default async function ProfilePage() {
 
   const latestSchedule = latestScheduleRows?.[0];
   const latestDtr = latestDtrRows?.[0];
-  const initials = profile.full_name
-    .split(" ")
-    .map((token) => token.slice(0, 1).toUpperCase())
-    .join("")
-    .slice(0, 2);
+  const unreadNotificationCount = unreadNotifications ?? 0;
+  const submittedScheduleCount = submittedSchedules ?? 0;
+  const submittedDtrCount = submittedDtr ?? 0;
+  const activeTeamMemberCount = teamMembers ?? 0;
+  const statusText = (profile.status ?? "inactive").replace(/_/g, " ");
   const joinedDate = format(new Date(profile.created_at), "MMMM d, yyyy");
   const lastUpdated = format(new Date(profile.updated_at), "MMMM d, yyyy");
   const roleLabel = isManager ? "Manager" : "Employee";
+  const profileStats: ProfileStat[] = [
+    {
+      label: "Unread Notifications",
+      value: unreadNotificationCount.toLocaleString(),
+      helper: "Pending updates",
+      icon: Bell,
+      cardClassName: "border-rose-100 bg-gradient-to-br from-white to-rose-50/70",
+      iconClassName: "border-rose-200 bg-rose-100 text-rose-600",
+    },
+    {
+      label: "Schedules Submitted",
+      value: submittedScheduleCount.toLocaleString(),
+      helper: "Personal total",
+      icon: CalendarClock,
+      cardClassName: "border-sky-100 bg-gradient-to-br from-white to-sky-50/70",
+      iconClassName: "border-sky-200 bg-sky-100 text-sky-600",
+    },
+    {
+      label: "DTR Submitted",
+      value: submittedDtrCount.toLocaleString(),
+      helper: "Personal total",
+      icon: Clock3,
+      cardClassName: "border-amber-100 bg-gradient-to-br from-white to-amber-50/80",
+      iconClassName: "border-amber-200 bg-amber-100 text-amber-700",
+    },
+    {
+      label: isManager ? "Active Team Members" : "Profile Role",
+      value: isManager ? activeTeamMemberCount.toLocaleString() : roleLabel,
+      helper: isManager ? "Employee accounts" : "Current role",
+      icon: isManager ? UsersRound : BriefcaseBusiness,
+      cardClassName: "border-emerald-100 bg-gradient-to-br from-white to-emerald-50/70",
+      iconClassName: "border-emerald-200 bg-emerald-100 text-emerald-700",
+      valueClassName: isManager ? undefined : "text-[2rem]",
+    },
+  ];
 
   return (
     <div className="space-y-6 md:space-y-8 w-full overflow-x-hidden">
@@ -98,48 +147,82 @@ export default async function ProfilePage() {
       />
 
       <Card className="overflow-hidden border-slate-200 shadow-md">
-        <CardContent className="bg-gradient-to-r from-white via-slate-50 to-blue-50 p-5 sm:p-6">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-lg font-bold text-white shadow-sm">
-                {initials}
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Account Identity
-                </p>
-                <h2 className="text-2xl font-semibold text-slate-950">
-                  {profile.full_name}
-                </h2>
-                <div className="flex flex-nowrap items-center gap-1 text-[10px] leading-tight">
-                  <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-slate-900 px-2 py-[6px] font-semibold text-white shadow-sm">
-                    <UserRound className="h-3 w-3 text-white/80" />
-                    <span className="capitalize">{roleLabel}</span>
+        <CardContent className="relative overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(251,113,133,0.12),_transparent_24%),linear-gradient(135deg,_#ffffff_0%,_#f8fbff_45%,_#eef5ff_100%)] p-0">
+          <div className="pointer-events-none absolute left-[-4rem] top-[-3rem] h-44 w-44 rounded-full bg-rose-200/35 blur-3xl" />
+          <div className="pointer-events-none absolute right-[-2rem] top-[-1rem] h-52 w-52 rounded-full bg-sky-200/40 blur-3xl" />
+          <div className="pointer-events-none absolute bottom-[-4rem] right-[20%] h-40 w-40 rounded-full bg-amber-100/40 blur-3xl" />
+
+          <div className="relative p-6 sm:p-8">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px] xl:items-center">
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <h2 className="text-4xl font-semibold tracking-tight text-slate-950 xl:text-5xl">
+                    {profile.full_name}
+                  </h2>
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-base text-slate-500">
+                    <span className="inline-flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-slate-400" />
+                      {profile.email}
+                    </span>
+                    <span className="inline-flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4 text-slate-400" />
+                      Joined {joinedDate}
+                    </span>
+                    <span className="inline-flex items-center gap-2">
+                      <Clock3 className="h-4 w-4 text-slate-400" />
+                      Updated {lastUpdated}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1.5 text-sm font-semibold text-white shadow-sm">
+                    <UserRound className="h-4 w-4 text-white/80" />
+                    {roleLabel}
                   </span>
-                  <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-100 px-2 py-[6px] font-semibold text-emerald-800 border border-emerald-200 shadow-sm capitalize">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                    {(profile.status ?? "inactive").replace(/_/g, " ")}
+                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold capitalize text-emerald-700 shadow-sm">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    {statusText}
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-sm text-slate-600 shadow-sm">
+                    <Bell className="h-4 w-4 text-rose-500" />
+                    {unreadNotificationCount} unread notifications
                   </span>
                 </div>
-              </div>
-            </div>
 
-            <div className="grid gap-3 text-sm sm:grid-cols-2">
-              <div className="rounded-xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-slate-500">
-                  Department
-                </p>
-                <p className="mt-1 font-semibold text-slate-900">
-                  {profile.department ?? "Not set"}
+                <p className="max-w-3xl text-base leading-8 text-slate-600">
+                  Keep your account details current and stay on top of schedules, DTR submissions,
+                  and team updates from one place.
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-slate-500">
-                  Employee Code
-                </p>
-                <p className="mt-1 font-semibold text-slate-900">
-                  {profile.employee_code ?? "Not set"}
-                </p>
+
+              <div className="grid gap-3 xl:justify-self-end xl:w-full">
+                <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Quick actions
+                  </p>
+                  <div className="mt-3 grid gap-3">
+                    <Button size="lg" asChild>
+                      <Link href="/settings">
+                        <Settings2 className="h-4 w-4" />
+                        Open settings
+                      </Link>
+                    </Button>
+                    <Button variant="outline" size="lg" asChild>
+                      <Link href={isManager ? "/employees" : "/schedule"}>
+                        {isManager ? "Manage team" : "Open schedule"}
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 text-sm text-slate-600 shadow-sm backdrop-blur">
+                  <p className="font-semibold text-slate-900">Stay current</p>
+                  <p className="mt-1">
+                    Review your submissions and account settings regularly to keep your records accurate.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -147,78 +230,52 @@ export default async function ProfilePage() {
       </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="shadow-sm">
-          <CardContent className="space-y-2 p-4 sm:p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Unread Notifications
-            </p>
-            <p className="text-2xl font-semibold text-slate-900">
-              {unreadNotifications}
-            </p>
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <Bell className="h-4 w-4" />
-              Pending updates
-            </div>
-          </CardContent>
-        </Card>
+        {profileStats.map((stat) => {
+          const Icon = stat.icon;
 
-        <Card className="shadow-sm">
-          <CardContent className="space-y-2 p-4 sm:p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Schedules Submitted
-            </p>
-            <p className="text-2xl font-semibold text-slate-900">
-              {submittedSchedules}
-            </p>
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <CalendarClock className="h-4 w-4" />
-              Personal total
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardContent className="space-y-2 p-4 sm:p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              DTR Submitted
-            </p>
-            <p className="text-2xl font-semibold text-slate-900">
-              {submittedDtr}
-            </p>
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <Clock3 className="h-4 w-4" />
-              Personal total
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardContent className="space-y-2 p-4 sm:p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {isManager ? "Active Team Members" : "Profile Role"}
-            </p>
-            <p className="text-2xl font-semibold text-slate-900">
-              {isManager ? teamMembers : roleLabel}
-            </p>
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              {isManager ? (
-                <>
-                  <UsersRound className="h-4 w-4" />
-                  Employee accounts
-                </>
-              ) : (
-                <>
-                  <BriefcaseBusiness className="h-4 w-4" />
-                  Current role
-                </>
+          return (
+            <Card
+              key={stat.label}
+              className={cn(
+                "overflow-hidden shadow-sm transition-colors",
+                stat.cardClassName,
               )}
-            </div>
-          </CardContent>
-        </Card>
+            >
+              <CardContent className="relative flex min-h-[190px] flex-col justify-between p-5 sm:p-6">
+                <div
+                  className={cn(
+                    "absolute right-5 top-5 flex h-11 w-11 items-center justify-center rounded-2xl border shadow-sm",
+                    stat.iconClassName,
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                </div>
+
+                <div className="pr-14">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    {stat.label}
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-5 text-[2.25rem] font-semibold leading-none tracking-tight text-slate-950",
+                      stat.valueClassName,
+                    )}
+                  >
+                    {stat.value}
+                  </p>
+                </div>
+
+                <div className="mt-6 border-t border-white/70 pt-4 text-sm text-slate-600">
+                  <span>{stat.helper}</span>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="shadow-sm">
+      <div className="grid items-stretch gap-4 lg:grid-cols-2">
+        <Card className="h-full shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserRound className="h-5 w-5 text-accent" />
@@ -228,7 +285,7 @@ export default async function ProfilePage() {
               Core information used for access, notifications, and records.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2">
+          <CardContent className="grid content-start gap-3 space-y-0 sm:grid-cols-2 sm:auto-rows-fr">
             <InfoItem label="Full Name" value={profile.full_name} />
             <InfoItem
               label="Email Address"
@@ -255,7 +312,7 @@ export default async function ProfilePage() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
+        <Card className="h-full shadow-sm">
           <CardHeader>
             <CardTitle>{isManager ? "Manager Snapshot" : "Employee Snapshot"}</CardTitle>
             <CardDescription>
@@ -343,18 +400,18 @@ function InfoItem({
   valueClassName?: string;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-white p-3 shadow-sm">
+    <div className="flex h-full flex-col justify-center rounded-xl border border-border bg-white p-3 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </p>
       <div
         className={cn(
-          "mt-1 flex items-center gap-2 text-sm font-semibold text-slate-900",
+          "mt-1 flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-900",
           valueClassName,
         )}
       >
         {icon}
-        <span>{value}</span>
+        <span className="min-w-0 break-words">{value}</span>
       </div>
     </div>
   );

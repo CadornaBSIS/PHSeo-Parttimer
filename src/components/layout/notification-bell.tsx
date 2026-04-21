@@ -81,7 +81,12 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   return (
     <DropdownMenu.Root open={open} onOpenChange={setOpen}>
       <DropdownMenu.Trigger asChild>
-        <Button id={triggerId} variant="ghost" size="icon" className="relative">
+        <Button
+          id={triggerId}
+          variant="ghost"
+          size="icon"
+          className="relative h-auto w-auto min-w-0 rounded-none border-0 bg-transparent p-0 shadow-none outline-none ring-0 hover:bg-transparent focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+        >
           <Bell className="h-5 w-5 text-slate-600" />
           {unreadCount ? (
             <span className="absolute right-1 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-white">

@@ -17,28 +17,34 @@ export function PageHeader({
   userId,
   className,
 }: Props) {
+  const desktopBell = userId ? (
+    <div className="hidden md:block">
+      <NotificationBell userId={userId} />
+    </div>
+  ) : null;
+
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 md:flex-row md:items-center md:justify-between",
+        "flex flex-col gap-2",
         className,
       )}
     >
-      <div>
-        <h1 className="page-title">{title}</h1>
-        {description ? (
-          <p className="text-sm text-slate-500 mt-1">{description}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="page-title">{title}</h1>
+        </div>
+        {actions || userId ? (
+          <div className="flex items-center gap-2 md:shrink-0">
+            {desktopBell}
+            {actions}
+          </div>
         ) : null}
       </div>
-      {actions || userId ? (
-        <div className="flex items-center gap-2">
-          {userId ? (
-            <div className="hidden md:block">
-              <NotificationBell userId={userId} />
-            </div>
-          ) : null}
-          {actions}
-        </div>
+      {description ? (
+        <p className="text-sm text-slate-500">
+          {description}
+        </p>
       ) : null}
     </div>
   );

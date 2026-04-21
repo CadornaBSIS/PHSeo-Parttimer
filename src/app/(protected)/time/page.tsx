@@ -23,15 +23,27 @@ export default async function TimeClockPage() {
         <div className="space-y-6">
           <TimeInOutPanel />
           <ManagerTimeRecords />
-          <div className="card">
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-slate-900">Team time record history</p>
+              <p className="text-sm text-slate-500">
+                Weekly breakdown of employee and manager records for the last 90 days.
+              </p>
+            </div>
             <TeamTimeRecordHistory />
           </div>
         </div>
       ) : (
         <div className="space-y-6">
           <TimeInOutPanel />
-          <div className="card">
-            <TimeRecordHistory />
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-slate-900">History</p>
+              <p className="text-sm text-slate-500">
+                Weekly breakdown of your time records.
+              </p>
+            </div>
+            <TimeRecordHistory showHeader={false} />
           </div>
         </div>
       )}

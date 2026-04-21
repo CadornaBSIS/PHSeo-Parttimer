@@ -201,6 +201,9 @@ export function AppSidebar({ profile, role, open, onClose }: SidebarProps) {
               <Link
                 href="/profile"
                 prefetch
+                onClick={() => {
+                  onClose?.();
+                }}
                 className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-800 hover:bg-slate-100"
               >
                 <User className="h-4 w-4" />
