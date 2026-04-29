@@ -224,18 +224,44 @@ export function TeamTimeRecordHistory({
         accessorKey: "attendance",
         cell: ({ row }) => {
           const status = row.original.attendance;
+          const scheduleStatus = row.original.schedule_status;
+          const scheduleLabel =
+            scheduleStatus === "day_off"
+              ? "Day off"
+              : scheduleStatus === "leave"
+                ? "Leave"
+                : scheduleStatus === "holiday"
+                  ? "Holiday"
+                  : scheduleStatus === "requested"
+                    ? "Requested"
+                    : null;
+
           const variant =
             status === "working"
               ? "success"
               : status === "timed_out"
                 ? "secondary"
-                : "warning";
+                : status === "on_break"
+                  ? "warning"
+                  : status === "absent"
+                    ? "danger"
+                    : status === "no_schedule"
+                      ? "muted"
+                      : scheduleStatus === "requested"
+                        ? "warning"
+                        : "muted";
           const label =
             status === "working"
               ? "Working"
               : status === "timed_out"
                 ? "Timed out"
-                : "On break";
+                : status === "on_break"
+                  ? "On break"
+                  : status === "absent"
+                    ? "Absent"
+                    : status === "no_schedule"
+                      ? "No schedule"
+                      : scheduleLabel ?? "Not working";
           return <Badge className="whitespace-nowrap" variant={variant}>{label}</Badge>;
         },
       },

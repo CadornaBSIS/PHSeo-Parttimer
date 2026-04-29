@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "@/components/layout/sidebar";
 import { AppHeader } from "@/components/layout/header";
@@ -12,12 +12,20 @@ type Props = {
 };
 
 export function AppShell({ profile, children }: Props) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
+  const [sidebarState, setSidebarState] = useState({ open: false, openedOnPath: "" });
+  const sidebarOpen = sidebarState.open && sidebarState.openedOnPath === pathname;
 
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [pathname]);
+  const closeSidebar = () => {
+    setSidebarState({ open: false, openedOnPath: pathname });
+  };
+
+  const toggleSidebar = () => {
+    setSidebarState((prev) => ({
+      open: !(prev.open && prev.openedOnPath === pathname),
+      openedOnPath: pathname,
+    }));
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
@@ -25,12 +33,12 @@ export function AppShell({ profile, children }: Props) {
         profile={profile}
         role={profile.role}
         open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
+        onClose={closeSidebar}
       />
       <div className="min-h-screen flex flex-col md:pl-64 overflow-x-hidden">
         <AppHeader
           profile={profile}
-          onMenuClick={() => setSidebarOpen((prev) => !prev)}
+          onMenuClick={toggleSidebar}
         />
         <main className="flex-1 overflow-x-hidden px-4 pb-8 pt-3 sm:px-6 sm:pb-10 sm:pt-4">
           {children}
@@ -39,7 +47,7 @@ export function AppShell({ profile, children }: Props) {
       {sidebarOpen ? (
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-sm md:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={closeSidebar}
         />
       ) : null}
     </div>

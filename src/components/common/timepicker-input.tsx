@@ -48,6 +48,7 @@ export function TimepickerInput({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const pickerRef = useRef<TimepickerUI | null>(null);
   const onChangeRef = useRef(onChange);
+  const initialValueRef = useRef(value);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -75,7 +76,7 @@ export function TimepickerInput({
     pickerRef.current = picker;
     picker.create();
     // Sync initial value into the UI/input.
-    picker.setValue(to12h(value));
+    picker.setValue(to12h(initialValueRef.current));
 
     return () => {
       picker.destroy();

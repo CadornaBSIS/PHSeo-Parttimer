@@ -563,30 +563,32 @@ function renderDtrPage(
       task.imageLinks.length > 0,
   );
 
-  let currentY = hasTasks
-    ? drawPaginatedTaskCards({
+  if (hasTasks) {
+    drawPaginatedTaskCards({
+      doc,
+      tasks: parsedTasks,
+      currentY: notesY,
+      onNewPage: () => drawOverflowPageHeader(doc, entry, employeeName),
+    });
+  } else {
+    drawPaginatedTextSection({
+      doc,
+      title: "Notes",
+      lines: wrapTextByWidth(
         doc,
-        tasks: parsedTasks,
-        currentY: notesY,
-        onNewPage: () => drawOverflowPageHeader(doc, entry, employeeName),
-      })
-    : drawPaginatedTextSection({
-        doc,
-        title: "Notes",
-        lines: wrapTextByWidth(
-          doc,
-          entry.notes?.trim() || "No notes provided.",
-          SECTION_INNER_WIDTH,
-          FONT_REGULAR_NAME,
-          10,
-        ),
-        currentY: notesY,
-        lineGap: 6,
-        lineHeight: 16,
-        textFontSize: 10,
-        textColor: COLORS.ink,
-        onNewPage: () => drawOverflowPageHeader(doc, entry, employeeName),
-      });
+        entry.notes?.trim() || "No notes provided.",
+        SECTION_INNER_WIDTH,
+        FONT_REGULAR_NAME,
+        10,
+      ),
+      currentY: notesY,
+      lineGap: 6,
+      lineHeight: 16,
+      textFontSize: 10,
+      textColor: COLORS.ink,
+      onNewPage: () => drawOverflowPageHeader(doc, entry, employeeName),
+    });
+  }
 
   // Intentionally omit the standalone `image_link` export section; task cards include their own proof links.
 }

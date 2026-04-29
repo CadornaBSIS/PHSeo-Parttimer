@@ -2,14 +2,14 @@
 
 import {
   ChangeEvent,
-  useActionState,
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
+  useTransition,
 } from "react";
 import Link from "next/link";
-import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 import { Eye, EyeOff, KeyRound, Loader2, ShieldCheck, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -99,15 +99,15 @@ function PasswordField({
 
 function SubmitButton({
   disabled,
+  pending,
   idleText,
   pendingText,
 }: {
   disabled?: boolean;
+  pending?: boolean;
   idleText: string;
   pendingText: string;
 }) {
-  const { pending } = useFormStatus();
-
   return (
     <Button type="submit" className="w-full sm:w-auto" disabled={disabled || pending}>
       {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -131,21 +131,17 @@ export function PasswordManagement({
   const [selfPassword, setSelfPassword] = useState("");
   const [selfConfirm, setSelfConfirm] = useState("");
   const [selfNotice, setSelfNotice] = useState<string | null>(null);
+  const [selfError, setSelfError] = useState<string | null>(null);
 
   const [employeeId, setEmployeeId] = useState("");
   const [employeePassword, setEmployeePassword] = useState("");
   const [employeeConfirm, setEmployeeConfirm] = useState("");
   const [employeeNotice, setEmployeeNotice] = useState<string | null>(null);
-
-  const [selfState, selfAction] = useActionState(changeOwnPasswordAction, {
-    error: undefined,
-    success: undefined,
-  });
-
-  const [empState, empAction] = useActionState(changeEmployeePasswordAction, {
-    error: undefined,
-    success: undefined,
-  });
+  const [employeeError, setEmployeeError] = useState<string | null>(null);
+  const [selfPending, startSelfTransition] = useTransition();
+  const [employeePending, startEmployeeTransition] = useTransition();
+  const selfNoticeTimerRef = useRef<number | null>(null);
+  const employeeNoticeTimerRef = useRef<number | null>(null);
 
   const selfIssues = useMemo(() => getPasswordIssues(selfPassword), [selfPassword]);
   const selfConfirmError = useMemo(() => {
@@ -166,39 +162,58 @@ export function PasswordManagement({
     Boolean(employeeId) && employeeIssues.length === 0 && !employeeConfirmError;
 
   useEffect(() => {
-    if (!selfState?.success) return;
+    return () => {
+      if (selfNoticeTimerRef.current !== null) window.clearTimeout(selfNoticeTimerRef.current);
+      if (employeeNoticeTimerRef.current !== null) window.clearTimeout(employeeNoticeTimerRef.current);
+    };
+  }, []);
 
-    setSelfNotice(selfState.success);
-    setSelfPassword("");
-    setSelfConfirm("");
-    toast.success(selfState.success);
+  const handleSelfSubmit = async (formData: FormData) => {
+    startSelfTransition(async () => {
+      setSelfError(null);
+      const result = await changeOwnPasswordAction({}, formData);
+      if (result.error) {
+        setSelfError(result.error);
+        toast.error(result.error);
+        return;
+      }
+      if (!result.success) return;
 
-    const timer = setTimeout(() => setSelfNotice(null), 4000);
-    return () => clearTimeout(timer);
-  }, [selfState?.success]);
+      setSelfNotice(result.success);
+      setSelfPassword("");
+      setSelfConfirm("");
+      toast.success(result.success);
+      if (selfNoticeTimerRef.current !== null) window.clearTimeout(selfNoticeTimerRef.current);
+      selfNoticeTimerRef.current = window.setTimeout(() => {
+        setSelfNotice(null);
+        selfNoticeTimerRef.current = null;
+      }, 4000);
+    });
+  };
 
-  useEffect(() => {
-    if (!empState?.success) return;
+  const handleEmployeeSubmit = async (formData: FormData) => {
+    startEmployeeTransition(async () => {
+      setEmployeeError(null);
+      const result = await changeEmployeePasswordAction({}, formData);
+      if (result.error) {
+        setEmployeeError(result.error);
+        toast.error(result.error);
+        return;
+      }
+      if (!result.success) return;
 
-    setEmployeeNotice(empState.success);
-    setEmployeeId("");
-    setEmployeePassword("");
-    setEmployeeConfirm("");
-    toast.success(empState.success);
-
-    const timer = setTimeout(() => setEmployeeNotice(null), 5000);
-    return () => clearTimeout(timer);
-  }, [empState?.success]);
-
-  useEffect(() => {
-    if (!selfState?.error) return;
-    toast.error(selfState.error);
-  }, [selfState?.error]);
-
-  useEffect(() => {
-    if (!empState?.error) return;
-    toast.error(empState.error);
-  }, [empState?.error]);
+      setEmployeeNotice(result.success);
+      setEmployeeId("");
+      setEmployeePassword("");
+      setEmployeeConfirm("");
+      toast.success(result.success);
+      if (employeeNoticeTimerRef.current !== null) window.clearTimeout(employeeNoticeTimerRef.current);
+      employeeNoticeTimerRef.current = window.setTimeout(() => {
+        setEmployeeNotice(null);
+        employeeNoticeTimerRef.current = null;
+      }, 5000);
+    });
+  };
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -210,7 +225,7 @@ export function PasswordManagement({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form action={selfAction} className="space-y-4">
+          <form action={handleSelfSubmit} className="space-y-4">
             <PasswordField
               id={selfPasswordId}
               name="password"
@@ -240,8 +255,8 @@ export function PasswordManagement({
               </p>
             </div>
 
-            {selfState?.error ? (
-              <p className="text-sm text-red-600">{selfState.error}</p>
+            {selfError ? (
+              <p className="text-sm text-red-600">{selfError}</p>
             ) : null}
             {selfNotice ? (
               <p className="text-sm text-emerald-700">{selfNotice}</p>
@@ -250,6 +265,7 @@ export function PasswordManagement({
             <div className="flex flex-col gap-2 sm:flex-row">
               <SubmitButton
                 disabled={!canSubmitSelf}
+                pending={selfPending}
                 idleText="Update password"
                 pendingText="Updating..."
               />
@@ -278,9 +294,9 @@ export function PasswordManagement({
               <UsersRound className="h-5 w-5 text-accent" />
               Reset Employee Password
             </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <form action={empAction} className="space-y-4">
+        </CardHeader>
+        <CardContent className="space-y-4">
+            <form action={handleEmployeeSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="employee_id">Employee</Label>
                 <Select
@@ -324,8 +340,8 @@ export function PasswordManagement({
                 error={employeeConfirmError}
               />
 
-              {empState?.error ? (
-                <p className="text-sm text-red-600">{empState.error}</p>
+              {employeeError ? (
+                <p className="text-sm text-red-600">{employeeError}</p>
               ) : null}
               {employeeNotice ? (
                 <p className="text-sm text-emerald-700">{employeeNotice}</p>
@@ -334,6 +350,7 @@ export function PasswordManagement({
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <SubmitButton
                   disabled={!canSubmitEmployee}
+                  pending={employeePending}
                   idleText="Update employee password"
                   pendingText="Updating..."
                 />

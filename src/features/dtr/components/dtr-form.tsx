@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,6 +46,29 @@ const fallbackProjects = [
 
 function isPersistedProjectId(projectId: string | null | undefined) {
   return Boolean(projectId && !projectId.startsWith("fallback-"));
+}
+
+function extractHttpsUrl(value: string) {
+  const match = value.match(/https:\/\/\S+/i);
+  if (!match) return null;
+
+  // Strip common trailing punctuation users might type after pasting a URL.
+  return match[0].replace(/[),.;]+$/, "");
+}
+
+function isValidHttpsUrlWithDomain(urlStr: string) {
+  try {
+    const url = new URL(urlStr);
+    if (url.protocol !== "https:") return false;
+    // Require a real-looking domain (contains a dot + tld).
+    const host = url.hostname;
+    if (!host.includes(".")) return false;
+    const tld = host.split(".").pop();
+    if (!tld || tld.length < 2) return false;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function DtrForm({
@@ -103,34 +126,11 @@ export function DtrForm({
 
   // Link fields can include a human title + a URL, e.g. "My Title: https://example.com/page".
   // We validate the first https:// URL we can find inside the field.
-  const extractHttpsUrl = (value: string) => {
-    const match = value.match(/https:\/\/\S+/i);
-    if (!match) return null;
-
-    // Strip common trailing punctuation users might type after pasting a URL.
-    return match[0].replace(/[),.;]+$/, "");
-  };
-
-  const isValidHttpsUrlWithDomain = (urlStr: string) => {
-    try {
-      const url = new URL(urlStr);
-      if (url.protocol !== "https:") return false;
-      // Require a real-looking domain (contains a dot + tld).
-      const host = url.hostname;
-      if (!host.includes(".")) return false;
-      const tld = host.split(".").pop();
-      if (!tld || tld.length < 2) return false;
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  const isValidLinkField = (value: string) => {
+  const isValidLinkField = useCallback((value: string) => {
     const httpsUrl = extractHttpsUrl(value.trim());
     if (!httpsUrl) return false;
     return isValidHttpsUrlWithDomain(httpsUrl);
-  };
+  }, []);
 
   const [tasks, setTasks] = useState<string[]>(() => splitTaskBlocks(initialData?.notes));
   const [taskEditorOpen, setTaskEditorOpen] = useState(false);
@@ -222,7 +222,7 @@ export function DtrForm({
     }
 
     return null;
-  }, [taskEditorOpen, taskSection, taskDescription, taskTitleLinks, taskImageLinks]);
+  }, [isValidLinkField, taskEditorOpen, taskSection, taskDescription, taskTitleLinks, taskImageLinks]);
 
   const handleSubmit = async (submit: boolean) => {
     if (submit && (!hasTasks || taskEditorOpen)) {
@@ -292,7 +292,7 @@ export function DtrForm({
                 onChange={(e) => setTaskSection(e.target.value)}
               />
               <p className="text-[11px] text-slate-500">
-                Format: action + project (example: "Translated Blog Under Allinclusive")
+                Format: action + project (example: &quot;Translated Blog Under Allinclusive&quot;)
               </p>
               {taskAttemptedSubmit && !taskSection.trim() ? (
                 <p className="text-xs text-red-600">Section is required.</p>

@@ -140,7 +140,7 @@ export async function saveDtrAction(
       })
       .eq("id", entryId);
     if (error) {
-      const code = (error as any).code as string | undefined;
+      const code = error.code;
       if (code === "23505") {
         const { data: existing } = await supabase
           .from("dtr_entries")
@@ -176,7 +176,7 @@ export async function saveDtrAction(
       .select("id")
       .single();
     if (error) {
-      const code = (error as any).code as string | undefined;
+      const code = error.code;
       if (code === "23505") {
         const { data: existing } = await supabase
           .from("dtr_entries")

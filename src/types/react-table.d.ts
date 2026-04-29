@@ -1,7 +1,8 @@
 import "@tanstack/react-table";
 
 declare module "@tanstack/react-table" {
-  interface ColumnMeta<TData, TValue> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<_TData, _TValue> {
     /**
      * Optional horizontal alignment for header and cell content.
      */

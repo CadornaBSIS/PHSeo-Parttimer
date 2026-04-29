@@ -40,6 +40,12 @@ function manilaTimeHHmm(date = new Date()) {
   return `${parts.hour}:${parts.minute}`;
 }
 
+type ScheduleRelation = { employee_id?: string | null } | Array<{ employee_id?: string | null }> | null;
+
+function getScheduledEmployeeId(schedule: ScheduleRelation) {
+  return Array.isArray(schedule) ? schedule[0]?.employee_id ?? null : schedule?.employee_id ?? null;
+}
+
 export type TimeClockStatus = {
   today: string;
   hasScheduleForWeek: boolean;
@@ -60,7 +66,7 @@ export type ManagerTimeRecordRow = {
   employee_id: string;
   employee_name: string;
   schedule_status: string;
-  attendance: "working" | "on_break" | "timed_out" | "absent" | "no_record" | "not_working" | "no_schedule";
+  attendance: AttendanceStatus;
   first_time_in: string | null;
   last_time_out: string | null;
   open_time_in: string | null;
@@ -69,9 +75,18 @@ export type ManagerTimeRecordRow = {
   dtr_text: string | null;
 };
 
+type AttendanceStatus =
+  | "working"
+  | "on_break"
+  | "timed_out"
+  | "absent"
+  | "no_record"
+  | "not_working"
+  | "no_schedule";
+
 export type TimeRecordHistoryRow = {
   work_date: string;
-  attendance: "working" | "on_break" | "timed_out";
+  attendance: AttendanceStatus;
   first_time_in: string | null;
   last_time_out: string | null;
   open_time_in: string | null;
@@ -84,6 +99,7 @@ export type TimeRecordHistoryRow = {
 export type TeamTimeRecordHistoryRow = TimeRecordHistoryRow & {
   employee_id: string;
   employee_name: string;
+  schedule_status: string;
 };
 
 export async function getTimeRecordHistoryAction(options?: {
@@ -223,15 +239,24 @@ export async function getTeamTimeRecordHistoryAction(options?: {
     .from("time_log_sessions")
     .select("employee_id, work_date, time_in, time_out, end_reason")
     .gte("work_date", cutoff)
+    .lte("work_date", manilaToday)
     .in("employee_id", employeeIds)
     .order("work_date", { ascending: false })
     .order("time_in", { ascending: true });
   if (sessionError) return { ok: false, error: sessionError.message };
 
+  const { data: scheduleDays, error: scheduleError } = await supabase
+    .from("schedule_days")
+    .select("work_date, work_status, schedules(employee_id)")
+    .gte("work_date", cutoff)
+    .lte("work_date", manilaToday);
+  if (scheduleError) return { ok: false, error: scheduleError.message };
+
   const { data: dtrs } = await supabase
     .from("dtr_entries")
     .select("id, employee_id, work_date, notes")
     .gte("work_date", cutoff)
+    .lte("work_date", manilaToday)
     .in("employee_id", employeeIds);
 
   const dtrByEmpDate = (dtrs ?? []).reduce<Record<string, Record<string, { id: string; text: string }>>>((acc, row) => {
@@ -254,6 +279,14 @@ export async function getTeamTimeRecordHistoryAction(options?: {
     return acc;
   }, {});
 
+  const scheduleStatusByEmpDate = (scheduleDays ?? []).reduce<Record<string, Record<string, string>>>((acc, row) => {
+    const employeeId = getScheduledEmployeeId(row.schedules as ScheduleRelation);
+    if (!employeeId || !row.work_date || !employeeIds.includes(employeeId)) return acc;
+    acc[employeeId] ??= {};
+    acc[employeeId]![row.work_date] = row.work_status ?? "working";
+    return acc;
+  }, {});
+
   const nameByEmployee = (employees ?? []).reduce<Record<string, string>>((acc, row) => {
     acc[row.id] = row.full_name ?? "Employee";
     return acc;
@@ -261,15 +294,25 @@ export async function getTeamTimeRecordHistoryAction(options?: {
 
   const out: TeamTimeRecordHistoryRow[] = [];
 
-  for (const employeeId of Object.keys(sessionsByEmpDate)) {
+  for (const employeeId of employeeIds) {
     const byDate = sessionsByEmpDate[employeeId] ?? {};
-    const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+    const scheduleByDate = scheduleStatusByEmpDate[employeeId] ?? {};
+    const dtrByDate = dtrByEmpDate[employeeId] ?? {};
+    const dates = Array.from(
+      new Set([...Object.keys(byDate), ...Object.keys(scheduleByDate), ...Object.keys(dtrByDate)]),
+    )
+      .filter((workDate) => workDate <= manilaToday)
+      .sort((a, b) => b.localeCompare(a));
     for (const work_date of dates) {
       const list = byDate[work_date] ?? [];
       const first = list[0] ?? null;
       const last = list.length ? list[list.length - 1] : null;
       const open = list.find((s) => !s.time_out) ?? null;
+      const breakUsed = list.some((s) => s.end_reason === "break");
       const dayEnded = list.some((s) => s.end_reason === "day_end");
+      const scheduleStatus = scheduleByDate[work_date] ?? "no_schedule";
+      const scheduledToWork = scheduleStatus === "working" || scheduleStatus === "requested";
+      const isPastDate = work_date.localeCompare(manilaToday) < 0;
       const workedMinutesCompleted = list.reduce((acc, s) => {
         if (!s.time_out) return acc;
         const start = new Date(s.time_in).getTime();
@@ -277,17 +320,19 @@ export async function getTeamTimeRecordHistoryAction(options?: {
         return acc + Math.max(0, Math.round((end - start) / 60000));
       }, 0);
 
-      const attendance: TimeRecordHistoryRow["attendance"] = open
-        ? "working"
-        : dayEnded
-          ? "timed_out"
-          : last?.end_reason === "break"
-            ? "on_break"
-            : "timed_out";
+      let attendance: AttendanceStatus = "no_record";
+      if (open) attendance = "working";
+      else if (scheduleStatus === "no_schedule" && !list.length) attendance = "no_schedule";
+      else if (!scheduledToWork) attendance = "not_working";
+      else if (dayEnded) attendance = "timed_out";
+      else if (breakUsed || last?.end_reason === "break") attendance = "on_break";
+      else if (!list.length && scheduledToWork) attendance = isPastDate ? "absent" : "not_working";
+      else attendance = "timed_out";
 
       out.push({
         employee_id: employeeId,
         employee_name: nameByEmployee[employeeId] ?? "Employee",
+        schedule_status: scheduleStatus,
         work_date,
         attendance,
         first_time_in: first?.time_in ?? null,
@@ -295,16 +340,16 @@ export async function getTeamTimeRecordHistoryAction(options?: {
         open_time_in: open?.time_in ?? null,
         sessions: list.length,
         worked_minutes_completed: workedMinutesCompleted,
-        dtr_id: dtrByEmpDate[employeeId]?.[work_date]?.id ?? null,
-        dtr_text: dtrByEmpDate[employeeId]?.[work_date]?.text ?? null,
+        dtr_id: dtrByDate[work_date]?.id ?? null,
+        dtr_text: dtrByDate[work_date]?.text ?? null,
       });
     }
   }
 
   out.sort((a, b) => {
-    const nameCmp = a.employee_name.localeCompare(b.employee_name);
-    if (nameCmp !== 0) return nameCmp;
-    return (b.work_date ?? "").localeCompare(a.work_date ?? "");
+    const dateCmp = (b.work_date ?? "").localeCompare(a.work_date ?? "");
+    if (dateCmp !== 0) return dateCmp;
+    return a.employee_name.localeCompare(b.employee_name);
   });
 
   return { ok: true, data: out };
@@ -352,9 +397,7 @@ export async function getManagerTimeRecordsAction(
     .eq("work_date", date);
 
   const scheduleStatusByEmployee = (scheduleDays ?? []).reduce<Record<string, string>>((acc, row) => {
-    const schedule = (row as any).schedules;
-    const employeeId =
-      schedule && Array.isArray(schedule) ? schedule[0]?.employee_id : schedule?.employee_id;
+    const employeeId = getScheduledEmployeeId(row.schedules as ScheduleRelation);
     if (!employeeId) return acc;
     acc[employeeId] = row.work_status ?? "working";
     return acc;
@@ -648,7 +691,6 @@ export async function startBreakAction(): Promise<ActionResult> {
 
   const status = await getTodayStatusInternal();
   if (!status.ok) return status;
-  const today = status.data!.today;
 
   if (status.data!.dayEnded) {
     return { ok: false, error: "You already timed out for today." };

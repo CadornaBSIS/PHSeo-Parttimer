@@ -578,42 +578,44 @@ export async function GET(
         task.imageLinks.length > 0,
     );
 
-    let currentY = hasTasks
-      ? drawPaginatedTaskCards({
-          doc,
-          tasks: parsedTasks,
-          currentY: notesY,
-          onNewPage: () =>
-            drawOverflowPageHeader(
-              doc,
-              entry.id,
-              entry.work_date,
-              employeeProfile?.full_name ?? "Employee",
-            ),
-        })
-      : drawPaginatedTextSection({
-          doc,
-          title: "Notes",
-          lines: wrapTextByWidth(
+    if (hasTasks) {
+      drawPaginatedTaskCards({
+        doc,
+        tasks: parsedTasks,
+        currentY: notesY,
+        onNewPage: () =>
+          drawOverflowPageHeader(
             doc,
-            entry.notes?.trim() || "No notes provided.",
-            SECTION_INNER_WIDTH,
-            FONT_REGULAR_NAME,
-            10,
+            entry.id,
+            entry.work_date,
+            employeeProfile?.full_name ?? "Employee",
           ),
-          currentY: notesY,
-          lineGap: 6,
-          lineHeight: 16,
-          textFontSize: 10,
-          textColor: COLORS.ink,
-          onNewPage: () =>
-            drawOverflowPageHeader(
-              doc,
-              entry.id,
-              entry.work_date,
-              employeeProfile?.full_name ?? "Employee",
-            ),
-        });
+      });
+    } else {
+      drawPaginatedTextSection({
+        doc,
+        title: "Notes",
+        lines: wrapTextByWidth(
+          doc,
+          entry.notes?.trim() || "No notes provided.",
+          SECTION_INNER_WIDTH,
+          FONT_REGULAR_NAME,
+          10,
+        ),
+        currentY: notesY,
+        lineGap: 6,
+        lineHeight: 16,
+        textFontSize: 10,
+        textColor: COLORS.ink,
+        onNewPage: () =>
+          drawOverflowPageHeader(
+            doc,
+            entry.id,
+            entry.work_date,
+            employeeProfile?.full_name ?? "Employee",
+          ),
+      });
+    }
 
     doc.end();
 

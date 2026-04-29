@@ -21,6 +21,8 @@ type Row = {
   schedule_days?: { approval_status?: "for_approval" | "approved" | "not_approved" | null }[];
 };
 
+type ReviewStatus = "for_approval" | "approved" | "not_approved" | "partially_reviewed" | "reviewed";
+
 export function ScheduleTable({
   data,
   isManager,
@@ -106,7 +108,7 @@ export function ScheduleTable({
     };
   }, [employeeId, realtime, statusFilter]);
 
-  const getReviewStatus = (row: Row) => {
+  const getReviewStatus = (row: Row): ReviewStatus | null => {
     const approvals = row.schedule_days ?? [];
     if (!approvals.length) return null;
     const values = approvals.map((day) => day.approval_status ?? "for_approval");
@@ -235,7 +237,7 @@ export function ScheduleTable({
                             <StatusBadge status={row.status} />
                           </td>
                           <td className="p-3">
-                            {reviewStatus ? <StatusBadge status={reviewStatus as any} /> : "--"}
+                            {reviewStatus ? <StatusBadge status={reviewStatus} /> : "--"}
                           </td>
                           <td className="p-3 text-slate-800 whitespace-nowrap">
                             {row.submitted_at

@@ -22,7 +22,7 @@ export const dtrFormSchema = z
         if (!value?.trim()) return;
         try {
           parseImageLinks(value, { strict: true });
-        } catch (error) {
+        } catch {
           ctx.addIssue({
             code: "custom",
             message: "Image links must follow: Title: https://example.com (one per line).",

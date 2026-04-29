@@ -29,6 +29,12 @@ function isValidYmd(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+type ScheduleRelation = { employee_id?: string | null } | Array<{ employee_id?: string | null }> | null;
+
+function getScheduledEmployeeId(schedule: ScheduleRelation) {
+  return Array.isArray(schedule) ? schedule[0]?.employee_id ?? null : schedule?.employee_id ?? null;
+}
+
 export async function GET(req: NextRequest) {
   const supabase = await createServerSupabaseClient();
   const {
@@ -129,9 +135,7 @@ export async function GET(req: NextRequest) {
     .lte("work_date", weekEnd);
 
   const scheduleByEmpDate = (scheduleDays ?? []).reduce<Record<string, Record<string, string>>>((acc, row) => {
-    const schedule = (row as any).schedules;
-    const employeeId =
-      schedule && Array.isArray(schedule) ? schedule[0]?.employee_id : schedule?.employee_id;
+    const employeeId = getScheduledEmployeeId(row.schedules as ScheduleRelation);
     if (!employeeId) return acc;
     acc[employeeId] ??= {};
     acc[employeeId]![row.work_date] = row.work_status ?? "working";

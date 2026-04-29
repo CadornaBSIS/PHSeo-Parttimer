@@ -12,7 +12,7 @@
     "dev:webpack": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "seed": "node scripts/seed.mjs",
     "postinstall": "node scripts/patch-fontkit.mjs"
