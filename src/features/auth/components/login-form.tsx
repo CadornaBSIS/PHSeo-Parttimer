@@ -58,10 +58,10 @@ export function LoginForm() {
       ) : null}
       <div className="flex items-start justify-between gap-3 text-sm">
         <span className="text-xs leading-snug text-slate-400">
-          Password changes are handled by managers on request. Self-service reset is disabled.
+          Password changes are handled by account administrators on request. Self-service reset is disabled.
         </span>
         <span className="text-xs font-medium text-slate-300">
-          Manager-provisioned only
+          Authorized access only
         </span>
       </div>
       <Button
